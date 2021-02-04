@@ -1,7 +1,7 @@
 import math, random, numpy
 
 #### GENERATION PARAMS ####
-#CAVES: 50 5 .53 1.7 12 .07 20 110 .98
+#CAVES: 200 8 .55 1.7 20 .06 40 90 1
 class Noise:
     def __init__(self):
         self.SCALE = 200
