@@ -4,7 +4,7 @@ import math, random, numpy
 #CAVES: 200 8 .55 1.7 20 .06 40 90 1
 class Noise:
     def __init__(self):
-        self.SCALE = 200
+        self.SCALE = 100
         self.OCTAVES = 8
         self.PERSISTENCE = .55
         self.FRACTAL_RATIO = 1.7
@@ -14,7 +14,7 @@ class Noise:
         self.SIGMOID_OFFSET = 0.06
 
         self.AVERAGE = True
-        self.AVG_RADIUS = 40
+        self.AVG_RADIUS = 20
         self.AVG_CUTOFF = 90
         self.AVG_EFFECT = 1
 
@@ -65,34 +65,32 @@ class Noise:
         # wolfram alpha came up with this equation i have no idea what a hyperbolic sine is but it works
         return .5 * (1 / numpy.sinh(self.SIGMOID_B / 4)) * (1 / numpy.cosh(.25 * (self.SIGMOID_B - (2 * self.SIGMOID_B * x)))) * numpy.sinh(self.SIGMOID_B * x / 2)
 
-    def average_cutoff(self, center1, source):
+    def average_cutoff(self, center, source):
         if self.AVERAGE:
-            center = (int(center1[0] / self.average_group_size), int(center1[1] / self.average_group_size))
-            radius = int(self.AVG_RADIUS / self.average_group_size)
-            arr = numpy.zeros((radius * 2 + 1, radius * 2 + 1))
+            arr = numpy.zeros((self.AVG_RADIUS * 2 + 1, self.AVG_RADIUS * 2 + 1))
             startx = 0
             starty = 0
-            endx = radius * 2 + 1
-            endy = radius * 2 + 1
-            if center[0] < radius:
-                startx = radius - center[0]
-            if center[1] < radius:
-                starty = radius - center[1]
-            if center[0] > source.shape[0] - radius - 1:
-                endx = radius + (source.shape[0] - center[0])
-            if center[1] > source.shape[1] - radius - 1:
-                endy = radius + (source.shape[1] - center[1])
+            endx = self.AVG_RADIUS * 2 + 1
+            endy = self.AVG_RADIUS * 2 + 1
+            if center[0] < self.AVG_RADIUS:
+                startx = self.AVG_RADIUS - center[0]
+            if center[1] < self.AVG_RADIUS:
+                starty = self.AVG_RADIUS - center[1]
+            if center[0] > source.shape[0] - self.AVG_RADIUS - 1:
+                endx = self.AVG_RADIUS + (source.shape[0] - center[0])
+            if center[1] > source.shape[1] - self.AVG_RADIUS - 1:
+                endy = self.AVG_RADIUS + (source.shape[1] - center[1])
             for x in range(startx, endx):
                 for y in range(starty, endy):
-                    arr[x, y] = self.avg_square(x, y, source)
+                    arr[x, y] = source[x, y]
             t = sum(arr.flatten())
             div = sum(map(lambda m: 1 if m > 0 else 0, arr.flatten()))
-            if source[center1[0], center1[1], 0] >= ((t / div) - self.AVG_CUTOFF) * self.AVG_EFFECT + self.AVG_CUTOFF:
+            if source[center[0], center[1], 0] >= ((t / div) - self.AVG_CUTOFF) * self.AVG_EFFECT + self.AVG_CUTOFF:
                 return 255
             else:
                 return 0
         else:
-            return 255 if source[center1[0], center1[1], 0] > self.AVG_CUTOFF else 0
+            return 255 if source[center[0], center[1], 0] > self.AVG_CUTOFF else 0
 
     def avg_square(self, x, y, arr):
         if (x, y) not in self.average_groups.keys():
