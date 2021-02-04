@@ -158,7 +158,7 @@ class Player:
                 self.vel[1] /= -2
                 self.pos[1] += 0.1
             if [1, 0] in self.vectors:
-                if [1, -1] not in self.vectors and world.global_tiledict[(round(self.pos[0]), round(self.pos[1]) + 1)].id == 0:
+                if [1, -1] not in self.vectors and (round(self.pos[0]), round(self.pos[1]) + 1) in world.global_tiledict and world.global_tiledict[(round(self.pos[0]), round(self.pos[1]) + 1)].id == 0:
                     self.pos[1] -= 1
                 else:
                     self.vel[0] = 2
@@ -166,7 +166,7 @@ class Player:
                         self.pos[0] -= 0.006
                         self.vector_recalc(False)
             if [-1, 0] in self.vectors:
-                if [-1, -1] not in self.vectors and world.global_tiledict[(round(self.pos[0]), round(self.pos[1]) + 1)].id == 0:
+                if [-1, -1] not in self.vectors and (round(self.pos[0]), round(self.pos[1]) + 1) in world.global_tiledict and world.global_tiledict[(round(self.pos[0]), round(self.pos[1]) + 1)].id == 0:
                     self.pos[1] -= 1
                 else:
                     self.vel[0] = 0
@@ -198,7 +198,7 @@ class Player:
                     continue
                 if yb - self.pos[1] > tolerance and y - yb == 1:
                     continue
-                if (x, y) not in world.global_tiledict or world.global_tiledict[(x, y)].id == 0:
+                if (x, y) in world.global_tiledict and world.global_tiledict[(x, y)].id == 0:
                     self.vectors.append([x - xb, y - yb])
         if printbool and len(self.vectors) > 0:
             for v in self.vectors:
@@ -222,9 +222,9 @@ if __name__ == '__main__':
     ##### GAMEPLAY PARAMS #####
     FPS = 60
     NOISE_TESTING_MODE = False
-    CHUNKLOAD_RADIUS = 3
+    CHUNKLOAD_RADIUS = 4
     CHUNKSIZE = 64
-    SCALING = 4
+    SCALING = 3
 
     sprites = {
         "tile_dark": pg.transform.scale(pg.image.load("sprites\\tile_dark.png"), (SCALING, SCALING)),
@@ -283,7 +283,7 @@ if __name__ == '__main__':
                     c.draw()
                 player.update()
                 SURF.blit(sprites["tile_blue"], (int(W / 2), int(H / 2)))
-            f = pg.font.SysFont("Arial", 10)
+            f = pg.font.SysFont("Arial", 15)
             r = f.render(str(int(sum(fpsArr) / len(fpsArr))), True, pg.Color("red"))
             SURF.blit(r, (5, 5))
         pg.display.update()

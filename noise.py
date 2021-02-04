@@ -5,22 +5,22 @@ import math, random, numpy
 class Noise:
     def __init__(self):
         self.SCALE = 200
-        self.OCTAVES = 9
+        self.OCTAVES = 8
         self.PERSISTENCE = .55
         self.FRACTAL_RATIO = 1.7
-        self.SEED = 4376587326
+        self.SEED = 3463135
 
         self.SIGMOID_B = 20
         self.SIGMOID_OFFSET = 0.06
 
         self.AVERAGE = True
-        self.AVG_RADIUS = 60
+        self.AVG_RADIUS = 40
         self.AVG_CUTOFF = 90
         self.AVG_EFFECT = 1
 
         self.point_cache = {}
         self.average_groups = {}
-        self.average_group_size = 5
+        self.average_group_size = 10
 
     def perlin(self, tp):
         x1 = int(tp[0])
