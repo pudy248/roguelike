@@ -13,14 +13,14 @@ class Noise:
         self.SIGMOID_B = 20
         self.SIGMOID_OFFSET = 0.06
 
-        self.AVERAGE = True
+        self.AVERAGE = False
         self.AVG_RADIUS = 20
-        self.AVG_CUTOFF = 90
+        self.AVG_CUTOFF = 30
         self.AVG_EFFECT = 1
 
         self.point_cache = {}
 
-    def perlin(self, tp):
+    def worley(self, tp):
         x1 = int(tp[0])
         y1 = int(tp[1])
         x2 = tp[0] - x1
@@ -39,17 +39,17 @@ class Noise:
             distance.append(math.hypot(x2 - n[0], y2 - n[1]))
         return min(distance)
 
-    def layered_perlin(self, x, y):
+    def layered_worley(self, x, y):
         b = 1
         t = 0
         for i in range(self.OCTAVES):
             offset = self.SEED * (i + 1)
-            t += self.perlin((x * numpy.power(self.FRACTAL_RATIO, i) + offset, y * numpy.power(self.FRACTAL_RATIO, i) + offset)) * numpy.power(self.PERSISTENCE, i)
+            t += self.worley((x * numpy.power(self.FRACTAL_RATIO, i) + offset, y * numpy.power(self.FRACTAL_RATIO, i) + offset)) * numpy.power(self.PERSISTENCE, i)
             b += numpy.power(self.PERSISTENCE, i)
         return t / b
 
     def set_pixel(self, x, y, arr):
-        a = self.sigmoid(self.layered_perlin(x / self.SCALE, y / self.SCALE) + self.SIGMOID_OFFSET) * 255
+        a = self.sigmoid(self.layered_worley(x / self.SCALE, y / self.SCALE) + self.SIGMOID_OFFSET) * 255
         arr[x, y % 10, 0: 3] = [a] * 3
 
     def thread_f(self, y, W):
@@ -82,7 +82,7 @@ class Noise:
                 for y in range(starty, endy):
                     arr[x, y] = source[x, y]
             t = sum(arr.flatten())
-            div = sum(map(lambda m: 1 if m > 0 else 0, arr.flatten()))
+            div = numpy.prod(arr.shape, 0)
             if source[center[0], center[1], 0] >= ((t / div) - self.AVG_CUTOFF) * self.AVG_EFFECT + self.AVG_CUTOFF:
                 return 255
             else:
@@ -93,6 +93,6 @@ class Noise:
     def thread_avg(self, y, arr, W):
         arr2 = numpy.zeros((W, 1, 3))
         for x in range(W):
-            arr2[x, 0, 0:3] = self.average_cutoff((x, y), arr)
+            arr2[x, 0, 0:3] = [self.average_cutoff((x, y), arr)] * 3
         return arr2, y
 

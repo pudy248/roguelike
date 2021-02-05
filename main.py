@@ -22,12 +22,10 @@ class Chunk:
                 self.tiledict.update({(x, y): t})
 
     def generate(self, CHUNKSIZE, N):
-        bounds = (self.pos[0] * CHUNKSIZE - N.AVG_RADIUS, self.pos[0] * CHUNKSIZE + N.AVG_RADIUS + CHUNKSIZE,
-                  self.pos[1] * CHUNKSIZE - N.AVG_RADIUS, self.pos[1] * CHUNKSIZE + N.AVG_RADIUS + CHUNKSIZE)
-        noise = numpy.zeros((bounds[1] - bounds[0], bounds[3] - bounds[2], 1))
+        noise = numpy.zeros((N.AVG_RADIUS * 2 + CHUNKSIZE, N.AVG_RADIUS * 2 + CHUNKSIZE, 1))
         for x in range(noise.shape[0]):
             for y in range(noise.shape[1]):
-                noise[x, y, 0] = N.sigmoid(N.layered_perlin((x + bounds[0]) / N.SCALE, (y + bounds[2]) / N.SCALE) + N.SIGMOID_OFFSET) * 255
+                noise[x, y, 0] = N.sigmoid(N.layered_worley((x + N.AVG_RADIUS + self.pos[0] * CHUNKSIZE) / N.SCALE, (y + N.AVG_RADIUS + self.pos[1] * CHUNKSIZE) / N.SCALE) + N.SIGMOID_OFFSET) * 255
         for x in range(CHUNKSIZE):
             for y in range(CHUNKSIZE):
                 s = self.tiledict[x, y]
@@ -111,7 +109,7 @@ class World:
             self.global_tiledict.update({(t.pos[0], t.pos[1]): t})
 
     def unload_chunk(self, coords):
-        if coords in self.chunks.keys():
+        if coords in self.chunks.keys() and self.chunks[coords].loaded:
             self.cached_chunks.update({coords: self.chunks.pop(coords)})
             self.cached_chunks[coords].loaded = False
             if coords in self.surfaces.keys():
@@ -140,7 +138,7 @@ class Player:
         self.vectors = []
     def update(self):
         mult = 1 / (sum(fpsArr) / len(fpsArr))
-        self.vel[1] += 60 * mult
+        self.vel[1] += 40 * mult
         self.vector_recalc(False)
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
@@ -152,7 +150,10 @@ class Player:
                 self.pos[1] += 0.02
                 self.vector_recalc(False)
                 self.vel[1] = 0
-                self.vel[0] = 0
+                if abs(self.vel[0]) > 5:
+                    self.vel[0] /= 1 + (2 * mult)
+                else:
+                    self.vel[0] = 0
             elif [0, -1] in self.vectors:
                 self.vel[1] /= -2
                 self.pos[1] += 0.1
@@ -173,9 +174,9 @@ class Player:
                         self.pos[0] += 0.006
                         self.vector_recalc(False)
         if pg.key.get_pressed()[pg.K_a]:
-            self.vel[0] += (-500 if [0, 1] in self.vectors else -50) * mult
+            self.vel[0] -= 300 * mult if abs(self.vel[0]) < 20 else 30 * mult
         if pg.key.get_pressed()[pg.K_d]:
-            self.vel[0] += (500 if [0, 1] in self.vectors else 50) * mult
+            self.vel[0] += 300 * mult if abs(self.vel[0] < 20) else 30 * mult
         if pg.key.get_pressed()[pg.K_SPACE]:# and [0, 1] in self.vectors:
             player.vel[1] -= 100 * mult
             player.pos[1] -= .05
