@@ -22,8 +22,8 @@ class Chunk:
                 self.tiledict.update({(x, y): t})
 
     def generate(self, CHUNKSIZE, N):
-        bounds = (self.pos[0] * CHUNKSIZE - int((N.AVG_RADIUS + 1) * N.average_group_size), self.pos[0] * CHUNKSIZE + int((N.AVG_RADIUS + 1) * N.average_group_size) + CHUNKSIZE,
-                  self.pos[1] * CHUNKSIZE - int((N.AVG_RADIUS + 1) * N.average_group_size), self.pos[1] * CHUNKSIZE + int((N.AVG_RADIUS + 1) * N.average_group_size) + CHUNKSIZE)
+        bounds = (self.pos[0] * CHUNKSIZE - N.AVG_RADIUS, self.pos[0] * CHUNKSIZE + N.AVG_RADIUS + CHUNKSIZE,
+                  self.pos[1] * CHUNKSIZE - N.AVG_RADIUS, self.pos[1] * CHUNKSIZE + N.AVG_RADIUS + CHUNKSIZE)
         noise = numpy.zeros((bounds[1] - bounds[0], bounds[3] - bounds[2], 1))
         for x in range(noise.shape[0]):
             for y in range(noise.shape[1]):
@@ -31,7 +31,7 @@ class Chunk:
         for x in range(CHUNKSIZE):
             for y in range(CHUNKSIZE):
                 s = self.tiledict[x, y]
-                s.id = 1 if N.average_cutoff((x + int((N.AVG_RADIUS + 1) * N.average_group_size), y + int((N.AVG_RADIUS + 1) * N.average_group_size)), noise) > 0 else 0
+                s.id = 1 if N.average_cutoff((x +N.AVG_RADIUS, y + N.AVG_RADIUS), noise) > 0 else 0
         self.loaded = True
         return self
 
@@ -56,7 +56,6 @@ class World:
         self.chunks.update({(0, 0): Chunk((0, 0))})
 
     def noise_display(self):
-        # THIS TAKES 10 YEARS TO RUN WITHOUT MULTITHREADING/MULTIPROCESSING
         arr_temp = numpy.zeros((W, H, 3))
         threads = []
         pool = Pool()

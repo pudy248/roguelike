@@ -19,8 +19,6 @@ class Noise:
         self.AVG_EFFECT = 1
 
         self.point_cache = {}
-        self.average_groups = {}
-        self.average_group_size = 10
 
     def perlin(self, tp):
         x1 = int(tp[0])
@@ -91,19 +89,6 @@ class Noise:
                 return 0
         else:
             return 255 if source[center[0], center[1], 0] > self.AVG_CUTOFF else 0
-
-    def avg_square(self, x, y, arr):
-        if (x, y) not in self.average_groups.keys():
-            sum = 0
-            entries = 0
-            for x1 in range(self.average_group_size):
-                for y1 in range(self.average_group_size):
-                    entries += 1
-                    sum += arr[(x * self.average_group_size + x1), (y * self.average_group_size + y1), 0]
-            self.average_groups.update({(x, y): sum /entries})
-            return sum / entries
-        else:
-            return self.average_groups[(x, y)]
 
     def thread_avg(self, y, arr, W):
         arr2 = numpy.zeros((W, 1, 3))
