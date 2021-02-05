@@ -221,7 +221,7 @@ if __name__ == '__main__':
     ##### GAMEPLAY PARAMS #####
     FPS = 60
     NOISE_TESTING_MODE = False
-    CHUNKLOAD_RADIUS = 4
+    CHUNKLOAD_RADIUS = 2
     CHUNKSIZE = 64
     SCALING = 3
 

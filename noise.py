@@ -8,7 +8,7 @@ class Noise:
         self.OCTAVES = 8
         self.PERSISTENCE = .55
         self.FRACTAL_RATIO = 1.7
-        self.SEED = 3463135
+        self.SEED = 34575334
 
         self.SIGMOID_B = 20
         self.SIGMOID_OFFSET = 0.06
