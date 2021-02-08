@@ -150,10 +150,13 @@ class Player:
                 self.pos[1] += 0.02
                 self.vector_recalc(False)
                 self.vel[1] = 0
-                if abs(self.vel[0]) > 5:
+                if len(self.vectors) > 0:
                     self.vel[0] /= 1 + (2 * mult)
                 else:
-                    self.vel[0] = 0
+                    if abs(self.vel[0]) > 3:
+                        self.vel[0] /= 1 + (numpy.sqrt(self.vel[0]) / 10 * mult + mult)
+                    else:
+                        self.vel[0] = 0
             elif [0, -1] in self.vectors:
                 self.vel[1] /= -2
                 self.pos[1] += 0.1
@@ -220,7 +223,7 @@ if __name__ == '__main__':
     dt = 0
 
     ##### GAMEPLAY PARAMS #####
-    FPS = 60
+    FPS = 120
     NOISE_TESTING_MODE = False
     CHUNKLOAD_RADIUS = 2
     CHUNKSIZE = 64
