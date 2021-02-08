@@ -13,10 +13,10 @@ class Noise:
         self.SIGMOID_B = 20
         self.SIGMOID_OFFSET = 0.06
 
-        self.AVERAGE = False
-        self.AVG_RADIUS = 20
+        self.AVERAGE = True
+        self.AVG_RADIUS = 5
         self.AVG_CUTOFF = 30
-        self.AVG_EFFECT = 1
+        self.AVG_EFFECT = 0.5
 
         self.point_cache = {}
 
@@ -65,24 +65,12 @@ class Noise:
 
     def average_cutoff(self, center, source):
         if self.AVERAGE:
-            arr = numpy.zeros((self.AVG_RADIUS * 2 + 1, self.AVG_RADIUS * 2 + 1))
-            startx = 0
-            starty = 0
-            endx = self.AVG_RADIUS * 2 + 1
-            endy = self.AVG_RADIUS * 2 + 1
-            if center[0] < self.AVG_RADIUS:
-                startx = self.AVG_RADIUS - center[0]
-            if center[1] < self.AVG_RADIUS:
-                starty = self.AVG_RADIUS - center[1]
-            if center[0] > source.shape[0] - self.AVG_RADIUS - 1:
-                endx = self.AVG_RADIUS + (source.shape[0] - center[0])
-            if center[1] > source.shape[1] - self.AVG_RADIUS - 1:
-                endy = self.AVG_RADIUS + (source.shape[1] - center[1])
-            for x in range(startx, endx):
-                for y in range(starty, endy):
-                    arr[x, y] = source[x, y]
+            arr = numpy.zeros((self.AVG_RADIUS * 2, self.AVG_RADIUS * 2))
+            for x in range(self.AVG_RADIUS * 2):
+                for y in range(self.AVG_RADIUS * 2):
+                    arr[x, y] = source[x + center[0] - self.AVG_RADIUS, y + center[1] - self.AVG_RADIUS]
             t = sum(arr.flatten())
-            div = numpy.prod(arr.shape, 0)
+            div = (self.AVG_RADIUS ** 2) * 4
             if source[center[0], center[1], 0] >= ((t / div) - self.AVG_CUTOFF) * self.AVG_EFFECT + self.AVG_CUTOFF:
                 return 255
             else:

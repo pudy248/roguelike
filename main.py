@@ -25,7 +25,7 @@ class Chunk:
         noise = numpy.zeros((N.AVG_RADIUS * 2 + CHUNKSIZE, N.AVG_RADIUS * 2 + CHUNKSIZE, 1))
         for x in range(noise.shape[0]):
             for y in range(noise.shape[1]):
-                noise[x, y, 0] = N.sigmoid(N.layered_worley((x + N.AVG_RADIUS + self.pos[0] * CHUNKSIZE) / N.SCALE, (y + N.AVG_RADIUS + self.pos[1] * CHUNKSIZE) / N.SCALE) + N.SIGMOID_OFFSET) * 255
+                noise[x, y, 0] = N.sigmoid(N.layered_worley((x + N.AVG_RADIUS + (self.pos[0] * CHUNKSIZE)) / N.SCALE, (y + N.AVG_RADIUS + (self.pos[1] * CHUNKSIZE)) / N.SCALE) + N.SIGMOID_OFFSET) * 255
         for x in range(CHUNKSIZE):
             for y in range(CHUNKSIZE):
                 s = self.tiledict[x, y]
@@ -225,9 +225,9 @@ if __name__ == '__main__':
     ##### GAMEPLAY PARAMS #####
     FPS = 120
     NOISE_TESTING_MODE = False
-    CHUNKLOAD_RADIUS = 2
+    CHUNKLOAD_RADIUS = 3
     CHUNKSIZE = 64
-    SCALING = 3
+    SCALING = 2
 
     sprites = {
         "tile_dark": pg.transform.scale(pg.image.load("sprites\\tile_dark.png"), (SCALING, SCALING)),
