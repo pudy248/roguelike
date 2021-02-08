@@ -14,9 +14,9 @@ class Noise:
         self.SIGMOID_OFFSET = 0.06
 
         self.AVERAGE = True
-        self.AVG_RADIUS = 5
+        self.AVG_RADIUS = 20
         self.AVG_CUTOFF = 30
-        self.AVG_EFFECT = 0.5
+        self.AVG_EFFECT = 1
 
         self.point_cache = {}
 
