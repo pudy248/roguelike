@@ -153,11 +153,13 @@ class Player:
                 if len(self.vectors) > 0:
                     self.vel[0] /= 1 + (2 * mult)
                 else:
-                    if abs(self.vel[0]) > 3:
-                        self.vel[0] /= 1 + (numpy.sqrt(self.vel[0]) / 10 * mult + mult)
+                    if abs(self.vel[0]) > 10:
+                        self.vel[0] /= 1 + (20 * mult)
                     else:
                         self.vel[0] = 0
-            elif [0, -1] in self.vectors:
+            else:
+                self.vel[0] /= 1 + (5 * mult)
+            if [0, -1] in self.vectors:
                 self.vel[1] /= -2
                 self.pos[1] += 0.1
             if [1, 0] in self.vectors:
@@ -177,9 +179,9 @@ class Player:
                         self.pos[0] += 0.006
                         self.vector_recalc(False)
         if pg.key.get_pressed()[pg.K_a]:
-            self.vel[0] -= 300 * mult if abs(self.vel[0]) < 20 else 30 * mult
+            self.vel[0] -= 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
         if pg.key.get_pressed()[pg.K_d]:
-            self.vel[0] += 300 * mult if abs(self.vel[0] < 20) else 30 * mult
+            self.vel[0] += 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
         if pg.key.get_pressed()[pg.K_SPACE]:# and [0, 1] in self.vectors:
             player.vel[1] -= 100 * mult
             player.pos[1] -= .05

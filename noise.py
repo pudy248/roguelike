@@ -4,8 +4,8 @@ import math, random, numpy
 #CAVES: 200 8 .55 1.7 20 .06 40 90 1
 class Noise:
     def __init__(self):
-        self.SCALE = 100
-        self.OCTAVES = 8
+        self.SCALE = 200
+        self.OCTAVES = 9
         self.PERSISTENCE = .55
         self.FRACTAL_RATIO = 1.7
         self.SEED = 34575334
@@ -18,8 +18,6 @@ class Noise:
         self.AVG_CUTOFF = 30
         self.AVG_EFFECT = 1
 
-        self.point_cache = {}
-
     def worley(self, tp):
         x1 = int(tp[0])
         y1 = int(tp[1])
@@ -28,12 +26,10 @@ class Noise:
         points = []
         for i in range(3):
             for j in range(3):
-                if not ((x1 + i - 1), (y1 + j - 1)) in self.point_cache.keys():
-                    random.seed((x1 + i - 1) * (y1 + j - 1) + self.SEED)
-                    x3 = random.random()
-                    y3 = random.random()
-                    self.point_cache.update({((x1 + i - 1), (y1 + j - 1)): (x3, y3)})
-                points.append((self.point_cache[((x1 + i - 1), (y1 + j - 1))][0] + i - 1, self.point_cache[((x1 + i - 1), (y1 + j - 1))][1] + j - 1))
+                random.seed((x1 + i - 1) * (y1 + j - 1) + self.SEED)
+                x3 = random.random()
+                y3 = random.random()
+                points.append((x3 + i - 1, y3 + j - 1))
         distance = []
         for n in points:
             distance.append(math.hypot(x2 - n[0], y2 - n[1]))
