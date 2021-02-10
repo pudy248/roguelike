@@ -4,19 +4,22 @@ import math, random, numpy
 #CAVES: 200 8 .55 1.7 20 .06 40 90 1
 class Noise:
     def __init__(self):
-        self.SCALE = 200
+        self.SCALE = 100
         self.OCTAVES = 9
-        self.PERSISTENCE = .55
+        self.PERSISTENCE = .50
         self.FRACTAL_RATIO = 1.7
         self.SEED = 34575334
 
-        self.SIGMOID_B = 20
-        self.SIGMOID_OFFSET = 0.06
+        self.SIGMOID_B = 8
+        self.SIGMOID_OFFSET = 0.0
 
-        self.AVERAGE = True
+        self.AVERAGE = False
         self.AVG_RADIUS = 20
-        self.AVG_CUTOFF = 30
+        self.AVG_CUTOFF = 90
         self.AVG_EFFECT = 1
+
+        self.interp_scale = 1
+        self.points = {}
 
     def worley(self, tp):
         x1 = int(tp[0])
@@ -35,17 +38,52 @@ class Noise:
             distance.append(math.hypot(x2 - n[0], y2 - n[1]))
         return min(distance)
 
-    def layered_worley(self, x, y):
-        b = 1
-        t = 0
-        for i in range(self.OCTAVES):
-            offset = self.SEED * (i + 1)
-            t += self.worley((x * numpy.power(self.FRACTAL_RATIO, i) + offset, y * numpy.power(self.FRACTAL_RATIO, i) + offset)) * numpy.power(self.PERSISTENCE, i)
-            b += numpy.power(self.PERSISTENCE, i)
-        return t / b
+    def layered_worley(self, xi, yi):
+        if xi % self.interp_scale == 0 and yi % self.interp_scale == 0:
+            if (xi, yi) not in self.points.keys():
+                x = xi / self.SCALE
+                y = yi / self.SCALE
+                b = 1
+                t = 0
+                for i in range(self.OCTAVES):
+                    offset = self.SEED * (i + 1)
+                    t += self.worley((x * numpy.power(self.FRACTAL_RATIO, i) + offset, y * numpy.power(self.FRACTAL_RATIO, i) + offset)) * numpy.power(self.PERSISTENCE, i)
+                    b += numpy.power(self.PERSISTENCE, i)
+                self.points.update({(xi, yi): (self.sigmoid(t / b) + self.SIGMOID_OFFSET) * 255})
+            return self.points[(xi, yi)]
+        else:
+            xr = (xi % self.interp_scale) / self.interp_scale
+            yr = (yi % self.interp_scale) / self.interp_scale
+            if (xi - (xi % self.interp_scale), yi - (yi % self.interp_scale)) not in self.points.keys():
+                p1 = self.layered_worley(xi - (xi % self.interp_scale), yi - (yi % self.interp_scale))
+            else:
+                p1 = self.points[(xi - (xi % self.interp_scale), yi - (yi % self.interp_scale))]
+            if (xi - (xi % self.interp_scale) + self.interp_scale, yi - (yi % self.interp_scale)) not in self.points.keys():
+                p2 = self.layered_worley(xi - (xi % self.interp_scale) + self.interp_scale, yi - (yi % self.interp_scale))
+            else:
+                p2 = self.points[(xi - (xi % self.interp_scale) + self.interp_scale, yi - (yi % self.interp_scale))]
+            if (xi - (xi % self.interp_scale), yi - (yi % self.interp_scale) + self.interp_scale) not in self.points.keys():
+                p3 = self.layered_worley(xi - (xi % self.interp_scale), yi - (yi % self.interp_scale) + self.interp_scale)
+            else:
+                p3 = self.points[(xi - (xi % self.interp_scale), yi - (yi % self.interp_scale) + self.interp_scale)]
+            if (xi - (xi % self.interp_scale) + self.interp_scale, yi - (yi % self.interp_scale) + self.interp_scale) not in self.points.keys():
+                p4 = self.layered_worley(xi - (xi % self.interp_scale) + self.interp_scale, yi - (yi % self.interp_scale) + self.interp_scale)
+            else:
+                p4 = self.points[(xi - (xi % self.interp_scale) + self.interp_scale, yi - (yi % self.interp_scale) + self.interp_scale)]
+            if xi % self.interp_scale != 0:
+                if yi % self.interp_scale != 0:
+                    return (p4 * xr * yr) + (p3 * (1 - xr) * yr) + (p2 * (1 - yr) * xr) + (p1 * (1 - xr) * (1 - yr))
+                else:
+                    return (p1 * (1 - xr)) + (p2 * xr)
+            else:
+                if yi % self.interp_scale != 0:
+                    return (p1 * (1 - yr)) + (p3 * yr)
+                else:
+                    return p1
+
 
     def set_pixel(self, x, y, arr):
-        a = self.sigmoid(self.layered_worley(x / self.SCALE, y / self.SCALE) + self.SIGMOID_OFFSET) * 255
+        a = self.layered_worley(x, y)
         arr[x, y % 10, 0: 3] = [a] * 3
 
     def thread_f(self, y, W):

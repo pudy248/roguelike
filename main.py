@@ -130,25 +130,29 @@ class World:
                 or k[1] not in range(center[1] - CHUNKLOAD_RADIUS - 2, center[1] + CHUNKLOAD_RADIUS + 2):
                 self.unload_chunk(k)
 
+#data format: (pos, lifetime, image str, team
+class PhysicsEntity(pg.sprite.Sprite):
+    def __init__(self, data):
+        pg.sprite.Sprite.__init__(self)
+        self.pos = data[0]
+        self.vel = [0, 0]
+        self.lifetime = data[1]
+        self.image = sprites[data[2]]
+        self.team = data[3]
 
-class Player:
-    def __init__(self):
-        self.pos = [CHUNKSIZE / 2, CHUNKSIZE / 2]
-        self.vel = [0.0, 0.0]
-        self.vectors = []
     def update(self):
         mult = 1 / (sum(fpsArr) / len(fpsArr))
         self.vel[1] += 40 * mult
-        self.vector_recalc(False)
+        self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
                 self.pos[1] -= 1
             if [0, 1] in self.vectors:
                 while [0, 1] in self.vectors:
                     self.pos[1] -= 0.006
-                    self.vector_recalc(False)
+                    self.vector_recalc()
                 self.pos[1] += 0.02
-                self.vector_recalc(False)
+                self.vector_recalc()
                 self.vel[1] = 0
                 if len(self.vectors) > 0:
                     self.vel[0] /= 1 + (2 * mult)
@@ -163,32 +167,19 @@ class Player:
                 self.vel[1] /= -2
                 self.pos[1] += 0.1
             if [1, 0] in self.vectors:
-                if [1, -1] not in self.vectors and (round(self.pos[0]), round(self.pos[1]) + 1) in world.global_tiledict and world.global_tiledict[(round(self.pos[0]), round(self.pos[1]) + 1)].id == 0:
-                    self.pos[1] -= 1
-                else:
-                    self.vel[0] = 2
-                    while [1, 0] in self.vectors:
-                        self.pos[0] -= 0.006
-                        self.vector_recalc(False)
+                self.vel[0] = 0
+                while [1, 0] in self.vectors:
+                    self.pos[0] -= 0.006
+                    self.vector_recalc()
             if [-1, 0] in self.vectors:
-                if [-1, -1] not in self.vectors and (round(self.pos[0]), round(self.pos[1]) + 1) in world.global_tiledict and world.global_tiledict[(round(self.pos[0]), round(self.pos[1]) + 1)].id == 0:
-                    self.pos[1] -= 1
-                else:
-                    self.vel[0] = 0
-                    while [-1, 0] in self.vectors:
-                        self.pos[0] += 0.006
-                        self.vector_recalc(False)
-        if pg.key.get_pressed()[pg.K_a]:
-            self.vel[0] -= 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
-        if pg.key.get_pressed()[pg.K_d]:
-            self.vel[0] += 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
-        if pg.key.get_pressed()[pg.K_SPACE]:# and [0, 1] in self.vectors:
-            player.vel[1] -= 100 * mult
-            player.pos[1] -= .05
+                self.vel[0] = 0
+                while [-1, 0] in self.vectors:
+                    self.pos[0] += 0.006
+                    self.vector_recalc()
         self.pos[0] += self.vel[0] * mult
         self.pos[1] += self.vel[1] * mult
 
-    def vector_recalc(self, printbool):
+    def vector_recalc(self):
         tolerance = 0
         self.vectors = []
         xb = round(self.pos[0])
@@ -205,10 +196,24 @@ class Player:
                     continue
                 if (x, y) in world.global_tiledict and world.global_tiledict[(x, y)].id == 0:
                     self.vectors.append([x - xb, y - yb])
-        if printbool and len(self.vectors) > 0:
-            for v in self.vectors:
-                print(tuple(v))
-            print("")
+
+class Player(PhysicsEntity):
+    def __init__(self, data):
+        PhysicsEntity.__init__(self, data)
+        self.pos = [CHUNKSIZE / 2, CHUNKSIZE / 2]
+        self.vectors = []
+
+    def update(self):
+        mult = 1 / (sum(fpsArr) / len(fpsArr))
+        if pg.key.get_pressed()[pg.K_a]:
+            self.vel[0] -= 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
+        if pg.key.get_pressed()[pg.K_d]:
+            self.vel[0] += 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
+        if pg.key.get_pressed()[pg.K_SPACE] and [0, 1] in self.vectors:
+            player.vel[1] -= 30
+            player.pos[1] -= .05
+        PhysicsEntity.update(self)
+
 
 
 if __name__ == '__main__':
@@ -227,9 +232,9 @@ if __name__ == '__main__':
     ##### GAMEPLAY PARAMS #####
     FPS = 120
     NOISE_TESTING_MODE = False
-    CHUNKLOAD_RADIUS = 3
-    CHUNKSIZE = 64
-    SCALING = 2
+    CHUNKLOAD_RADIUS = 2
+    CHUNKSIZE = 128
+    SCALING = 4
 
     sprites = {
         "tile_dark": pg.transform.scale(pg.image.load("sprites\\tile_dark.png"), (SCALING, SCALING)),
@@ -242,7 +247,7 @@ if __name__ == '__main__':
     if NOISE_TESTING_MODE:
         thread = Thread(target=world.noise_display)
     else:
-        player = Player()
+        player = Player(([CHUNKSIZE / 2, CHUNKSIZE / 2], -1, "tile_blue", 0))
         thread = Thread(target=world.load_all)
     thread.start()
     while True:
