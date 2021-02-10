@@ -6,19 +6,19 @@ class Noise:
     def __init__(self):
         self.SCALE = 100
         self.OCTAVES = 9
-        self.PERSISTENCE = .50
+        self.PERSISTENCE = .45
         self.FRACTAL_RATIO = 1.7
         self.SEED = 34575334
 
-        self.SIGMOID_B = 8
+        self.SIGMOID_B = 6
         self.SIGMOID_OFFSET = 0.0
 
-        self.AVERAGE = False
+        self.AVERAGE = True
         self.AVG_RADIUS = 20
-        self.AVG_CUTOFF = 90
+        self.AVG_CUTOFF = 110
         self.AVG_EFFECT = 1
 
-        self.interp_scale = 1
+        self.interp_scale = 5
         self.points = {}
 
     def worley(self, tp):
@@ -41,15 +41,15 @@ class Noise:
     def layered_worley(self, xi, yi):
         if xi % self.interp_scale == 0 and yi % self.interp_scale == 0:
             if (xi, yi) not in self.points.keys():
-                x = xi / self.SCALE
-                y = yi / self.SCALE
+                x = xi / self.SCALE / self.interp_scale
+                y = yi / self.SCALE / self.interp_scale
                 b = 1
                 t = 0
                 for i in range(self.OCTAVES):
                     offset = self.SEED * (i + 1)
                     t += self.worley((x * numpy.power(self.FRACTAL_RATIO, i) + offset, y * numpy.power(self.FRACTAL_RATIO, i) + offset)) * numpy.power(self.PERSISTENCE, i)
                     b += numpy.power(self.PERSISTENCE, i)
-                self.points.update({(xi, yi): (self.sigmoid(t / b) + self.SIGMOID_OFFSET) * 255})
+                self.points.update({(xi, yi): self.sigmoid(t / b + self.SIGMOID_OFFSET) * 255})
             return self.points[(xi, yi)]
         else:
             xr = (xi % self.interp_scale) / self.interp_scale

@@ -25,7 +25,7 @@ class Chunk:
         noise = numpy.zeros((N.AVG_RADIUS * 2 + CHUNKSIZE, N.AVG_RADIUS * 2 + CHUNKSIZE, 1))
         for x in range(noise.shape[0]):
             for y in range(noise.shape[1]):
-                noise[x, y, 0] = N.sigmoid(N.layered_worley((x + N.AVG_RADIUS + (self.pos[0] * CHUNKSIZE)) / N.SCALE, (y + N.AVG_RADIUS + (self.pos[1] * CHUNKSIZE)) / N.SCALE) + N.SIGMOID_OFFSET) * 255
+                noise[x, y, 0] = N.layered_worley(x + N.AVG_RADIUS + (self.pos[0] * CHUNKSIZE), y + N.AVG_RADIUS + (self.pos[1] * CHUNKSIZE))
         for x in range(CHUNKSIZE):
             for y in range(CHUNKSIZE):
                 s = self.tiledict[x, y]
@@ -155,12 +155,10 @@ class PhysicsEntity(pg.sprite.Sprite):
                 self.vector_recalc()
                 self.vel[1] = 0
                 if len(self.vectors) > 0:
-                    self.vel[0] /= 1 + (2 * mult)
+                    self.vel[0] /= 1 + (8 * mult)
                 else:
-                    if abs(self.vel[0]) > 10:
-                        self.vel[0] /= 1 + (20 * mult)
-                    else:
-                        self.vel[0] = 0
+                    if (self.vel[0] < 0 and pg.key.get_pressed()[pg.K_d]) or (self.vel[0] > 0 and pg.key.get_pressed()[pg.K_a]) or (not pg.key.get_pressed()[pg]):
+                        self.vel[0] /= 1 + (100 * mult)
             else:
                 self.vel[0] /= 1 + (5 * mult)
             if [0, -1] in self.vectors:
@@ -206,11 +204,11 @@ class Player(PhysicsEntity):
     def update(self):
         mult = 1 / (sum(fpsArr) / len(fpsArr))
         if pg.key.get_pressed()[pg.K_a]:
-            self.vel[0] -= 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
+            self.vel[0] -= 40 * mult
         if pg.key.get_pressed()[pg.K_d]:
-            self.vel[0] += 200 * mult if abs(self.vel[0]) < 5 else 40 * mult
+            self.vel[0] += 40 * mult
         if pg.key.get_pressed()[pg.K_SPACE] and [0, 1] in self.vectors:
-            player.vel[1] -= 30
+            player.vel[1] -= 50
             player.pos[1] -= .05
         PhysicsEntity.update(self)
 
@@ -223,11 +221,6 @@ if __name__ == '__main__':
     W = pg.display.Info().current_w
     H =  pg.display.Info().current_h
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
-
-    fpsArr = [1] * 30
-    timer = 0
-    initial_load = False
-    dt = 0
 
     ##### GAMEPLAY PARAMS #####
     FPS = 120
@@ -242,6 +235,11 @@ if __name__ == '__main__':
         "tile_blue": pg.transform.scale(pg.image.load("sprites\\tile_blue.png"), (SCALING, SCALING)),
         "tile_red":  pg.transform.scale(pg.image.load("sprites\\tile_red.png"), (SCALING, SCALING)),
     }
+
+    fpsArr = [1] * FPS
+    timer = 0
+    initial_load = False
+    dt = 0
     N = Noise()
     world = World()
     if NOISE_TESTING_MODE:
