@@ -23,14 +23,17 @@ class Chunk:
 
     def generate(self, CHUNKSIZE, N):
         noise = numpy.zeros((N.AVG_RADIUS * 2 + CHUNKSIZE, N.AVG_RADIUS * 2 + CHUNKSIZE, 1))
+        print(time.perf_counter())
         for x in range(noise.shape[0]):
             for y in range(noise.shape[1]):
                 noise[x, y, 0] = N.layered_worley(x + N.AVG_RADIUS + (self.pos[0] * CHUNKSIZE), y + N.AVG_RADIUS + (self.pos[1] * CHUNKSIZE))
+        print(time.perf_counter())
         for x in range(CHUNKSIZE):
             for y in range(CHUNKSIZE):
                 s = self.tiledict[x, y]
                 s.id = 1 if N.average_cutoff((x +N.AVG_RADIUS, y + N.AVG_RADIUS), noise) > 0 else 0
         self.loaded = True
+        print(time.perf_counter())
         return self
 
     def draw(self):
@@ -154,26 +157,25 @@ class PhysicsEntity(pg.sprite.Sprite):
                 self.pos[1] += 0.02
                 self.vector_recalc()
                 self.vel[1] = 0
-                if len(self.vectors) > 0:
-                    self.vel[0] /= 1 + (8 * mult)
+                if (self.vel[0] < 0 and pg.key.get_pressed()[pg.K_d]) or (self.vel[0] > 0 and pg.key.get_pressed()[pg.K_a]) or (not pg.key.get_pressed()[pg.K_a] and not pg.key.get_pressed()[pg.K_d]):
+                    self.vel[0] /= 1 + (10 * mult)
                 else:
-                    if (self.vel[0] < 0 and pg.key.get_pressed()[pg.K_d]) or (self.vel[0] > 0 and pg.key.get_pressed()[pg.K_a]) or (not pg.key.get_pressed()[pg]):
-                        self.vel[0] /= 1 + (100 * mult)
-            else:
-                self.vel[0] /= 1 + (5 * mult)
+                    self.vel[0] /= 1 + (3 * mult)
             if [0, -1] in self.vectors:
                 self.vel[1] /= -2
                 self.pos[1] += 0.1
             if [1, 0] in self.vectors:
-                self.vel[0] = 0
+                self.vel[0] /= -2
                 while [1, 0] in self.vectors:
                     self.pos[0] -= 0.006
                     self.vector_recalc()
             if [-1, 0] in self.vectors:
-                self.vel[0] = 0
+                self.vel[0] /= -2
                 while [-1, 0] in self.vectors:
                     self.pos[0] += 0.006
                     self.vector_recalc()
+        else:
+            self.vel[0] /= 1 + (.25 * mult)
         self.pos[0] += self.vel[0] * mult
         self.pos[1] += self.vel[1] * mult
 

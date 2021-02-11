@@ -4,21 +4,21 @@ import math, random, numpy
 #CAVES: 200 8 .55 1.7 20 .06 40 90 1
 class Noise:
     def __init__(self):
-        self.SCALE = 100
-        self.OCTAVES = 9
-        self.PERSISTENCE = .45
+        self.SCALE = 60
+        self.OCTAVES = 8
+        self.PERSISTENCE = .6
         self.FRACTAL_RATIO = 1.7
         self.SEED = 34575334
 
-        self.SIGMOID_B = 6
+        self.SIGMOID_B = .001
         self.SIGMOID_OFFSET = 0.0
 
         self.AVERAGE = True
-        self.AVG_RADIUS = 20
-        self.AVG_CUTOFF = 110
+        self.AVG_RADIUS = 10
+        self.AVG_CUTOFF = 105
         self.AVG_EFFECT = 1
 
-        self.interp_scale = 5
+        self.interp_scale = 10
         self.points = {}
 
     def worley(self, tp):
@@ -78,8 +78,6 @@ class Noise:
             else:
                 if yi % self.interp_scale != 0:
                     return (p1 * (1 - yr)) + (p3 * yr)
-                else:
-                    return p1
 
 
     def set_pixel(self, x, y, arr):
@@ -94,15 +92,18 @@ class Noise:
         return arr, y
 
     def sigmoid(self, x):
-        # wolfram alpha came up with this equation i have no idea what a hyperbolic sine is but it works
-        return .5 * (1 / numpy.sinh(self.SIGMOID_B / 4)) * (1 / numpy.cosh(.25 * (self.SIGMOID_B - (2 * self.SIGMOID_B * x)))) * numpy.sinh(self.SIGMOID_B * x / 2)
+        if self.SIGMOID_B <= 1:
+            return x
+        else:
+            return .5 * (1 / numpy.sinh(self.SIGMOID_B / 4)) * (1 / numpy.cosh(.25 * (self.SIGMOID_B - (2 * self.SIGMOID_B * x)))) * numpy.sinh(self.SIGMOID_B * x / 2)
 
     def average_cutoff(self, center, source):
         if self.AVERAGE:
             arr = numpy.zeros((self.AVG_RADIUS * 2, self.AVG_RADIUS * 2))
             for x in range(self.AVG_RADIUS * 2):
                 for y in range(self.AVG_RADIUS * 2):
-                    arr[x, y] = source[x + center[0] - self.AVG_RADIUS, y + center[1] - self.AVG_RADIUS]
+                    if 0 <= x + center[0] - self.AVG_RADIUS < source.shape[0] and 0 <= y + center[1] - self.AVG_RADIUS < source.shape[1]:
+                        arr[x, y] = source[x + center[0] - self.AVG_RADIUS, y + center[1] - self.AVG_RADIUS, 0]
             t = sum(arr.flatten())
             div = (self.AVG_RADIUS ** 2) * 4
             if source[center[0], center[1], 0] >= ((t / div) - self.AVG_CUTOFF) * self.AVG_EFFECT + self.AVG_CUTOFF:
