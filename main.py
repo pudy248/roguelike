@@ -86,8 +86,7 @@ class World:
             if coords in self.surfaces.keys():
                 self.surfaces.pop(coords)
             for k in self.cached_chunks[coords].tiledict.keys():
-                self.global_tiledict.pop(self.cached_chunks[coords].tiledict[k].world_pos)
-
+                self.global_tiledict.pop(self.cached_chunks[coords].tiledict[k].pos)
 
     def chunks_loadingupdate(self):
         center = (int(player.world_pos[0] / CHUNKSIZE), int(player.world_pos[1] / CHUNKSIZE))
@@ -101,54 +100,49 @@ class World:
                 or k[1] not in range(center[1] - CHUNKLOAD_RADIUS - 2, center[1] + CHUNKLOAD_RADIUS + 2):
                 self.unload_chunk(k)
 
-#data format: (pos, lifetime, image str, team)
+#data format: (pos, vel, lifetime, image str, team, gravity, rebound)
 class PhysicsEntity(pg.sprite.Sprite):
     def __init__(self, data):
         pg.sprite.Sprite.__init__(self)
         self.world_pos = data[0]
-        self.vel = [0, 0]
+        self.vel = data[1]
+        self.lifetime = data[2]
+        self.image = sprites[data[3]]
+        self.team = data[4]
+        self.gravity = data[5]
+        self.rebound = data[6]
         self.vectors = []
-        self.lifetime = data[1]
-        self.image = sprites[data[2]]
-        self.team = data[3]
 
     def update(self):
-        mult = 1 / (sum(fpsArr) / len(fpsArr))
+        for i in range(PHYS_RATE):
+            self.physics_update()
+        self.rect = pg.Rect((self.world_pos[0] - player.world_pos[0]) * SCALING + W / 2,
+                (self.world_pos[1] - player.world_pos[1]) * SCALING + H / 2, SCALING, SCALING)
+
+    def physics_update(self):
+        mult = 1 / (sum(fpsArr) / len(fpsArr)) / PHYS_RATE
         if self.lifetime != -1:
             self.lifetime -= mult
             if self.lifetime < 0:
                 projectileGroup.remove(self)
-        self.vel[1] += 40 * mult
+        self.vel[1] += self.gravity * mult
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
                 self.world_pos[1] -= 1
-            if [0, 1] in self.vectors:
-                while [0, 1] in self.vectors:
-                    self.world_pos[1] -= 0.006
+            if [0, 1] in self.vectors or [0, -1] in self.vectors:
+                if self.rebound:
+                    self.vel[1] /= -2
+                while [1, 0] in self.vectors or [-1, 0] in self.vectors:
+                    self.world_pos[1] -= 0.006 * (-1 if [0, -1] in self.vectors else 1)
                     self.vector_recalc()
-                self.world_pos[1] += 0.02
-                self.vector_recalc()
-                self.vel[1] = 0
-                if (self.vel[0] < 0 and pg.key.get_pressed()[pg.K_d]) or (self.vel[0] > 0 and pg.key.get_pressed()[pg.K_a]) or (not pg.key.get_pressed()[pg.K_a] and not pg.key.get_pressed()[pg.K_d]):
-                    self.vel[0] /= 1 + (10 * mult)
-                else:
-                    self.vel[0] /= 1 + (3 * mult)
-            if [0, -1] in self.vectors:
-                self.vel[1] /= -2
-                self.world_pos[1] += 0.1
-            if [1, 0] in self.vectors:
-                self.vel[0] /= -2
-                while [1, 0] in self.vectors:
-                    self.world_pos[0] -= 0.006
+            if [1, 0] in self.vectors or [-1, 0] in self.vectors:
+                if self.rebound:
+                    self.vel[0] /= -2
+                while [1, 0] in self.vectors or [-1, 0] in self.vectors:
+                    self.world_pos[0] -= 0.006 * (-1 if [-1, 0] in self.vectors else 1)
                     self.vector_recalc()
-            if [-1, 0] in self.vectors:
-                self.vel[0] /= -2
-                while [-1, 0] in self.vectors:
-                    self.world_pos[0] += 0.006
-                    self.vector_recalc()
-        else:
-            self.vel[0] /= 1 + (.25 * mult)
+        self.vel[0] /= 1 + (.25 * mult)
         self.world_pos[0] += self.vel[0] * mult
         self.world_pos[1] += self.vel[1] * mult
 
@@ -176,8 +170,8 @@ class Player (PhysicsEntity):
         self.world_pos = [CHUNKSIZE / 2, CHUNKSIZE / 2]
         self.vectors = []
 
-    def update(self):
-        mult = 1 / (sum(fpsArr) / len(fpsArr))
+    def physics_update(self):
+        mult = 1 / (sum(fpsArr) / len(fpsArr)) / PHYS_RATE
         if pg.key.get_pressed()[pg.K_a]:
             self.vel[0] -= 40 * mult
         if pg.key.get_pressed()[pg.K_d]:
@@ -185,8 +179,41 @@ class Player (PhysicsEntity):
         if pg.key.get_pressed()[pg.K_SPACE] and [0, 1] in self.vectors:
             player.vel[1] -= 50
             player.world_pos[1] -= .05
-        PhysicsEntity.update(self)
-
+        self.vel[1] += self.gravity * mult
+        self.vector_recalc()
+        if len(self.vectors) > 0:
+            if [0, 0] in self.vectors:
+                self.world_pos[1] -= 1
+            if [0, 1] in self.vectors:
+                while [0, 1] in self.vectors:
+                    self.world_pos[1] -= 0.006
+                    self.vector_recalc()
+                self.world_pos[1] += 0.02
+                self.vector_recalc()
+                self.vel[1] = 0
+                if (self.vel[0] < 0 and pg.key.get_pressed()[pg.K_d]) or (
+                        self.vel[0] > 0 and pg.key.get_pressed()[pg.K_a]) or (
+                        not pg.key.get_pressed()[pg.K_a] and not pg.key.get_pressed()[pg.K_d]):
+                    self.vel[0] /= 1 + (10 * mult)
+                else:
+                    self.vel[0] /= 1 + (3 * mult)
+            if [0, -1] in self.vectors:
+                self.vel[1] /= -2
+                self.world_pos[1] += 0.1
+            if [1, 0] in self.vectors:
+                self.vel[0] /= -2
+                while [1, 0] in self.vectors:
+                    self.world_pos[0] -= 0.006
+                    self.vector_recalc()
+            if [-1, 0] in self.vectors:
+                self.vel[0] /= -2
+                while [-1, 0] in self.vectors:
+                    self.world_pos[0] += 0.006
+                    self.vector_recalc()
+        else:
+            self.vel[0] /= 1 + (.25 * mult)
+        self.world_pos[0] += self.vel[0] * mult
+        self.world_pos[1] += self.vel[1] * mult
 
 
 if __name__ == '__main__':
@@ -197,11 +224,11 @@ if __name__ == '__main__':
     H =  pg.display.Info().current_h
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
 
-    ##### GAMEPLAY PARAMS #####
     FPS = 120
     CHUNKLOAD_RADIUS = 3
     CHUNKSIZE = 128
-    SCALING = 2
+    SCALING = 3
+    PHYS_RATE = 4
 
     sprites = {
         "tile_dark": pg.transform.scale(pg.image.load("sprites\\tile_dark.png"), (SCALING, SCALING)),
@@ -219,7 +246,7 @@ if __name__ == '__main__':
 
     N = Noise()
     world = World()
-    player = Player(([CHUNKSIZE / 2, CHUNKSIZE / 2], -1, "tile_blue", 0))
+    player = Player(([CHUNKSIZE / 2, CHUNKSIZE / 2], [0, 0], -1, "tile_blue", 0, 40, True))
     thread = Thread(target=world.load_all)
     thread.start()
     while True:
@@ -230,7 +257,10 @@ if __name__ == '__main__':
                 sys.exit()
             if event.type == pg.KEYDOWN:
                 k = event.key
-
+            if event.type == pg.MOUSEBUTTONDOWN:
+                direction = [(pg.mouse.get_pos()[0] - (W / 2)) * 200 / W, (pg.mouse.get_pos()[1] - (H / 2)) * 200 / H]
+                projectileGroup.add(PhysicsEntity(([player.world_pos[0] + (direction[0] / 50),
+                        player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, "tile_red", 0, 20, True)))
 
         SURF.fill((0, 0, 0))
         initial_load = initial_load or world.loading_check()

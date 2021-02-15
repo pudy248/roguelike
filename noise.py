@@ -1,22 +1,20 @@
 import math, random, numpy
 
-#### GENERATION PARAMS ####
-#CAVES: 200 8 .55 1.7 20 .06 40 90 1
 class Noise:
     def __init__(self):
-        self.SCALE = 60
-        self.OCTAVES = 7
-        self.PERSISTENCE = .55
-        self.FRACTAL_RATIO = 1.65
+        self.SCALE = 15
+        self.OCTAVES = 8
+        self.PERSISTENCE = .5
+        self.FRACTAL_RATIO = 1.7
         self.SEED = int(random.random() * 1000000)
 
-        self.SIGMOID_B = 3
-        self.SIGMOID_OFFSET = 0.0
+        self.SIGMOID_B = 4
+        self.SIGMOID_OFFSET = 0.07
 
         self.AVERAGE = True
-        self.AVG_RADIUS = 20
-        self.AVG_CUTOFF = 125
-        self.AVG_EFFECT = 1
+        self.AVG_RADIUS = 10
+        self.AVG_CUTOFF = 80
+        self.AVG_EFFECT = .98
 
         self.interp_scale = 8
         self.points = {}
@@ -39,6 +37,12 @@ class Noise:
             distance.append(math.hypot(x2 - n[0], y2 - n[1]))
         return min(distance)
 
+    def sigmoid(self, x):
+        if self.SIGMOID_B <= 1:
+            return x
+        else:
+            return .5 * (1 / numpy.sinh(self.SIGMOID_B / 4)) * (1 / numpy.cosh(.25 * (self.SIGMOID_B - (2 * self.SIGMOID_B * x)))) * numpy.sinh(self.SIGMOID_B * x / 2)
+
     def layered_worley(self, xi, yi):
         if (xi, yi) not in self.points.keys():
             x = (xi / self.SCALE) / self.interp_scale
@@ -52,23 +56,6 @@ class Noise:
                 b += numpy.power(self.PERSISTENCE, i)
             self.points.update({(xi, yi): self.sigmoid(t / b + self.SIGMOID_OFFSET) * 255})
         return self.points[(xi, yi)]
-
-    def interp_avg(self, x, y):
-        xr = (x % self.interp_scale) / self.interp_scale
-        yr = (y % self.interp_scale) / self.interp_scale
-
-        p1 = self.pixel_avg(x - (x % self.interp_scale), y - (y % self.interp_scale))
-        p2 = self.pixel_avg(x - (x % self.interp_scale) + self.interp_scale, y - (y % self.interp_scale))
-        p3 = self.pixel_avg(x - (x % self.interp_scale), y - (y % self.interp_scale) + self.interp_scale)
-        p4 = self.pixel_avg(x - (x % self.interp_scale) + self.interp_scale, y - (y % self.interp_scale) + self.interp_scale)
-
-        return (p4 * xr * yr) + (p3 * (1 - xr) * yr) + (p2 * (1 - yr) * xr) + (p1 * (1 - xr) * (1 - yr))
-
-    def sigmoid(self, x):
-        if self.SIGMOID_B <= 1:
-            return x
-        else:
-            return .5 * (1 / numpy.sinh(self.SIGMOID_B / 4)) * (1 / numpy.cosh(.25 * (self.SIGMOID_B - (2 * self.SIGMOID_B * x)))) * numpy.sinh(self.SIGMOID_B * x / 2)
 
     def pixel_avg(self, xi, yi):
         if (xi, yi) not in self.points_avg.keys():
@@ -84,3 +71,14 @@ class Noise:
                 a = self.layered_worley(xi, yi)
             self.points_avg.update({(xi, yi): a})
         return self.points_avg[(xi, yi)]
+
+    def interp_avg(self, x, y):
+        xr = (x % self.interp_scale) / self.interp_scale
+        yr = (y % self.interp_scale) / self.interp_scale
+
+        p1 = self.pixel_avg(x - (x % self.interp_scale), y - (y % self.interp_scale))
+        p2 = self.pixel_avg(x - (x % self.interp_scale) + self.interp_scale, y - (y % self.interp_scale))
+        p3 = self.pixel_avg(x - (x % self.interp_scale), y - (y % self.interp_scale) + self.interp_scale)
+        p4 = self.pixel_avg(x - (x % self.interp_scale) + self.interp_scale, y - (y % self.interp_scale) + self.interp_scale)
+
+        return (p4 * xr * yr) + (p3 * (1 - xr) * yr) + (p2 * (1 - yr) * xr) + (p1 * (1 - xr) * (1 - yr))
