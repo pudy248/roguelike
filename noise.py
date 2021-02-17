@@ -16,7 +16,7 @@ class Noise:
         self.AVG_CUTOFF = 80
         self.AVG_EFFECT = .98
 
-        self.interp_scale = 6
+        self.interp_scale = 5
         self.points = {}
         self.points_avg = {}
 

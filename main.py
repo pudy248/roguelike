@@ -32,9 +32,15 @@ class Chunk:
     def draw(self):
         if self.loaded:
             if self.pos not in world.surfaces.keys():
-                surface = pg.Surface((CHUNKSIZE * SCALING, CHUNKSIZE * SCALING))
+                tile_dark = pg.transform.scale(sprites["tile_dark"], (1, 1))
+                tile_light = pg.transform.scale(sprites["tile_light"], (1, 1))
+                tile_green = pg.transform.scale(sprites["tile_green"], (1, 1))
+                surface = pg.Surface((CHUNKSIZE, CHUNKSIZE))
                 for k in self.tiledict.keys():
-                    surface.blit(sprites["tile_dark"] if self.tiledict[k].id == 0 else sprites["tile_light"], (k[0] * SCALING, k[1] * SCALING))
+                    tile = self.tiledict[k]
+                    a = world.get_tile_id(tile.pos[0] - 1, tile.pos[1]) == 1 or world.get_tile_id(tile.pos[0] + 1, tile.pos[1]) == 1 or  world.get_tile_id(tile.pos[0], tile.pos[1] + 1) == 1 or  world.get_tile_id(tile.pos[0], tile.pos[1] - 1) == 1
+                    surface.blit((tile_green if a else tile_dark) if tile.id == 0 else tile_light, (k[0], k[1]))
+                surface = pg.transform.scale(surface, (CHUNKSIZE * SCALING, CHUNKSIZE * SCALING))
                 world.surfaces.update({self.pos: surface})
             SURF.blit(world.surfaces[self.pos], ((self.pos[0] * CHUNKSIZE - player.world_pos[0]) * SCALING + int(W / 2), (self.pos[1] * CHUNKSIZE - player.world_pos[1]) * SCALING + int(H / 2)))
 
@@ -105,9 +111,15 @@ class World:
                     self.load_chunk((x, y))
         keys = list(self.chunks.keys()).copy()
         for k in keys:
-            if k[0] not in range(center[0] - CHUNKLOAD_RADIUS - 2, center[0] + CHUNKLOAD_RADIUS + 2)\
-                or k[1] not in range(center[1] - CHUNKLOAD_RADIUS - 2, center[1] + CHUNKLOAD_RADIUS + 2):
+            if k[0] not in range(center[0] - CHUNKLOAD_RADIUS - 3, center[0] + CHUNKLOAD_RADIUS + 3)\
+                or k[1] not in range(center[1] - CHUNKLOAD_RADIUS - 3, center[1] + CHUNKLOAD_RADIUS + 3):
                 self.unload_chunk(k)
+
+    def get_tile_id(self, x, y):
+        if (x, y) in self.global_tiledict.keys():
+            return self.global_tiledict[x, y].id
+        else:
+            return None
 
 
 class PhysicsEntity(pg.sprite.Sprite):
@@ -170,7 +182,7 @@ class PhysicsEntity(pg.sprite.Sprite):
                     continue
                 if yb - self.world_pos[1] > tolerance and y - yb == 1:
                     continue
-                if (x, y) not in world.global_tiledict or ((x, y) in world.global_tiledict and world.global_tiledict[(x, y)].id == 0):
+                if (x, y) not in world.global_tiledict.keys() or ((x, y) in world.global_tiledict.keys() and world.get_tile_id(x, y) == 0):
                     self.vectors.append([x - xb, y - yb])
 
     def collide(self, group: pg.sprite.Group):
@@ -184,11 +196,11 @@ class PhysicsEntity(pg.sprite.Sprite):
 class Player (PhysicsEntity):
     def physics_update(self, mult):
         if pg.key.get_pressed()[pg.K_a]:
-            self.vel[0] -= (50 if [0, 1] in self.vectors else 10) * mult
+            self.vel[0] -= (30 if [0, 1] in self.vectors else 8) * mult
         if pg.key.get_pressed()[pg.K_d]:
-            self.vel[0] += (50 if [0, 1] in self.vectors else 10) * mult
+            self.vel[0] += (30 if [0, 1] in self.vectors else 8) * mult
         if pg.key.get_pressed()[pg.K_SPACE] and [0, 1] in self.vectors:
-            self.vel[1] -= 500
+            self.vel[1] -= 40
             self.world_pos[1] -= .05
         self.vel[1] += self.gravity * mult
         self.vector_recalc()
@@ -213,11 +225,11 @@ class Player (PhysicsEntity):
                 self.world_pos[1] += 0.2
             if [1, 0] in self.vectors or [-1, 0] in self.vectors:
                 if [0, 1] in self.vectors:
-                    if self.vel[0] < 0 and world.global_tiledict[round(self.world_pos[0]) - 1, round(self.world_pos[1])].id == 0:
+                    if self.vel[0] < 0 and world.get_tile_id(round(self.world_pos[0]) - 1, round(self.world_pos[1])) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= -0.2
-                    if self.vel[0] > 0 and world.global_tiledict[round(self.world_pos[0]) + 1, round(self.world_pos[1])].id == 0:
+                    if self.vel[0] > 0 and world.get_tile_id(round(self.world_pos[0]) + 1, round(self.world_pos[1])) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= 0.2
@@ -234,13 +246,13 @@ class Player (PhysicsEntity):
 class Enemy (Player):
     def physics_update(self, mult):
         if player.world_pos[0] < self.world_pos[0]:
-            self.vel[0] -= (50 if [0, 1] in self.vectors else 10) * mult
+            self.vel[0] -= (25 if [0, 1] in self.vectors else 7) * mult
         elif player.world_pos[0] > self.world_pos[0]:
-            self.vel[0] += (50 if [0, 1] in self.vectors else 10) * mult
+            self.vel[0] += (25 if [0, 1] in self.vectors else 7) * mult
         if [0, 1] in self.vectors and player.world_pos[1] < self.world_pos[1] and \
-                (world.global_tiledict[round(self.world_pos[0]) - numpy.sign(self.vel[0]), round(self.world_pos[1]) + 1].id != 0 or
-                world.global_tiledict[round(self.world_pos[0]) - numpy.sign(self.vel[0]),
-                round(self.world_pos[1]) - 1].id == 0):
+                (world.get_tile_id(round(self.world_pos[0]) - numpy.sign(self.vel[0]), round(self.world_pos[1]) + 1) != 0 or
+                world.get_tile_id(round(self.world_pos[0]) - numpy.sign(self.vel[0]),
+                round(self.world_pos[1]) - 1) == 0):
             self.vel[1] -= 50
             self.world_pos[1] -= .05
         self.vel[1] += self.gravity * mult
@@ -266,13 +278,13 @@ class Enemy (Player):
                 self.world_pos[1] += 0.2
             if [1, 0] in self.vectors or [-1, 0] in self.vectors:
                 if [0, 1] in self.vectors:
-                    if self.vel[0] < 0 and world.global_tiledict[
-                        round(self.world_pos[0]) - 1, round(self.world_pos[1])].id == 0:
+                    if self.vel[0] < 0 and world.get_tile_id(
+                        round(self.world_pos[0]) - 1, round(self.world_pos[1])) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= -0.2
-                    if self.vel[0] > 0 and world.global_tiledict[
-                        round(self.world_pos[0]) + 1, round(self.world_pos[1])].id == 0:
+                    if self.vel[0] > 0 and world.get_tile_id(
+                        round(self.world_pos[0]) + 1, round(self.world_pos[1])) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= 0.2
@@ -297,7 +309,7 @@ if __name__ == '__main__':
     FPS = 120
     CHUNKLOAD_RADIUS = 4
     CHUNKSIZE = 64
-    SCALING = 3
+    SCALING = 5
     PHYS_RATE = 10
 
     sprites = {
@@ -305,6 +317,7 @@ if __name__ == '__main__':
         "tile_light": pg.transform.scale(pg.image.load("sprites\\tile_light.png"), (SCALING, SCALING)),
         "tile_blue": pg.transform.scale(pg.image.load("sprites\\tile_blue.png"), (SCALING, SCALING)),
         "tile_red":  pg.transform.scale(pg.image.load("sprites\\tile_red.png"), (SCALING, SCALING)),
+        "tile_green": pg.transform.scale(pg.image.load("sprites\\tile_green.png"), (SCALING, SCALING))
     }
 
     fpsArr = [1] * FPS
@@ -333,7 +346,7 @@ if __name__ == '__main__':
                 direction = [(pg.mouse.get_pos()[0] - (W / 2)) * 200 / W, (pg.mouse.get_pos()[1] - (H / 2)) * 200 / H]
                 if pg.mouse.get_pressed(3)[0]:
                     projectileGroup.add(PhysicsEntity([player.world_pos[0] + (direction[0] / 50),
-                        player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, sprites["tile_red"], 0, 50, 1.3))
+                        player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, sprites["tile_red"], 2, 50, 1.3))
                 else:
                     enemyGroup.add(Enemy([player.world_pos[0] + (pg.mouse.get_pos()[0] - (W / 2)) / SCALING,
                         player.world_pos[1] + (pg.mouse.get_pos()[1] - (H / 2)) / SCALING], [player.vel[0], player.vel[1]], -1, sprites["tile_blue"], 1, 50, 1.3))
@@ -348,8 +361,8 @@ if __name__ == '__main__':
             projectileGroup.draw(SURF)
             enemyGroup.update()
             enemyGroup.draw(SURF)
-            player.update()
-            SURF.blit(sprites["tile_blue"], (int(W / 2), int(H / 2)))
+            playerGroup.update()
+            playerGroup.draw(SURF)
         else:
             player.time = time.perf_counter()
             f = pg.font.SysFont("Arial", 100, bold=True)
