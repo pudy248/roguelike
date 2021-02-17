@@ -1,5 +1,5 @@
 import pygame as pg
-import time, sys, os
+import time, sys, os, numpy
 from multiprocessing.pool import Pool
 from noise import Noise
 from threading import Thread
@@ -122,10 +122,12 @@ class PhysicsEntity(pg.sprite.Sprite):
         self.rebound = data[6]
         self.vectors = []
         self.time = time.perf_counter()
+        self.rect = pg.Rect(W / 2, H / 2, SCALING, SCALING)
 
     def update(self):
         for i in range(PHYS_RATE):
             self.physics_update()
+            self.collide(projectileGroup)
         self.rect = pg.Rect((self.world_pos[0] - player.world_pos[0]) * SCALING + W / 2,
                 (self.world_pos[1] - player.world_pos[1]) * SCALING + H / 2, SCALING, SCALING)
 
@@ -171,12 +173,14 @@ class PhysicsEntity(pg.sprite.Sprite):
                 if (x, y) in world.global_tiledict and world.global_tiledict[(x, y)].id == 0:
                     self.vectors.append([x - xb, y - yb])
 
-class Player (PhysicsEntity):
-    def __init__(self, data):
-        PhysicsEntity.__init__(self, data)
-        self.world_pos = [CHUNKSIZE / 2, CHUNKSIZE / 2]
-        self.vectors = []
+    def collide(self, group: pg.sprite.Group):
+        sprites = pg.sprite.spritecollide(self, group, False)
+        for s in sprites:
+            if s.team != self.team:
+                group.remove(s)
+                self.remove()
 
+class Player (PhysicsEntity):
     def physics_update(self):
         mult = (time.perf_counter() - self.time)
         self.time = time.perf_counter()
@@ -185,8 +189,8 @@ class Player (PhysicsEntity):
         if pg.key.get_pressed()[pg.K_d]:
             self.vel[0] += (50 if [0, 1] in self.vectors else 10) * mult
         if pg.key.get_pressed()[pg.K_SPACE] and [0, 1] in self.vectors:
-            player.vel[1] -= 50
-            player.world_pos[1] -= .05
+            self.vel[1] -= 50
+            self.world_pos[1] -= .05
         self.vel[1] += self.gravity * mult
         self.vector_recalc()
         if len(self.vectors) > 0:
@@ -196,7 +200,7 @@ class Player (PhysicsEntity):
                 while [0, 1] in self.vectors:
                     self.world_pos[1] -= 0.006
                     self.vector_recalc()
-                self.world_pos[1] += 0.02
+                self.world_pos[1] += 0.01
                 self.vector_recalc()
                 self.vel[1] = 0
                 if (self.vel[0] < 0 and pg.key.get_pressed()[pg.K_d]) or (
@@ -227,7 +231,61 @@ class Player (PhysicsEntity):
         self.world_pos[0] += self.vel[0] * mult
         self.world_pos[1] += self.vel[1] * mult
 
-#class Enemy (PhysicsEntity)
+class Enemy (Player):
+    def physics_update(self):
+        mult = (time.perf_counter() - self.time)
+        self.time = time.perf_counter()
+        if player.world_pos[0] < self.world_pos[0]:
+            self.vel[0] -= (50 if [0, 1] in self.vectors else 10) * mult
+        elif player.world_pos[0] > self.world_pos[0]:
+            self.vel[0] += (50 if [0, 1] in self.vectors else 10) * mult
+        if [0, 1] in self.vectors and player.world_pos[1] < self.world_pos[1] and \
+                (world.global_tiledict[round(self.world_pos[0]) - numpy.sign(self.vel[0]), round(self.world_pos[1]) + 2].id != 0 or
+                world.global_tiledict[round(self.world_pos[0]) - numpy.sign(self.vel[0]),
+                round(self.world_pos[1]) + 2].id != 0):
+            self.vel[1] -= 50
+            self.world_pos[1] -= .05
+        self.vel[1] += self.gravity * mult
+        self.vector_recalc()
+        if len(self.vectors) > 0:
+            if [0, 0] in self.vectors:
+                self.world_pos[1] -= 1
+            if [0, 1] in self.vectors:
+                while [0, 1] in self.vectors:
+                    self.world_pos[1] -= 0.006
+                    self.vector_recalc()
+                self.world_pos[1] += 0.01
+                self.vector_recalc()
+                self.vel[1] = 0
+                if (self.vel[0] < 0 and player.world_pos[0] > self.world_pos[0]) or (
+                        self.vel[0] > 0 and player.world_pos[0] < self.world_pos[0]) or (
+                        not player.world_pos[0] < self.world_pos[0] and not player.world_pos[0] > self.world_pos[0]):
+                    self.vel[0] /= 1 + (10 * mult)
+                else:
+                    self.vel[0] /= 1 + (3 * mult)
+            if [0, -1] in self.vectors:
+                self.vel[1] /= -self.rebound
+                self.world_pos[1] += 0.2
+            if [1, 0] in self.vectors or [-1, 0] in self.vectors:
+                if [0, 1] in self.vectors:
+                    if self.vel[0] < 0 and world.global_tiledict[
+                        round(self.world_pos[0]) - 1, round(self.world_pos[1])].id == 0:
+                        self.world_pos[1] -= 1
+                    else:
+                        self.world_pos[0] -= -0.2
+                    if self.vel[0] > 0 and world.global_tiledict[
+                        round(self.world_pos[0]) + 1, round(self.world_pos[1])].id == 0:
+                        self.world_pos[1] -= 1
+                    else:
+                        self.world_pos[0] -= 0.2
+                else:
+                    self.vel[0] /= -self.rebound
+                    self.world_pos[0] -= 0.2 * (-1 if [-1, 0] in self.vectors else 1)
+
+        else:
+            self.vel[0] /= 1 + (.25 * mult)
+        self.world_pos[0] += self.vel[0] * mult
+        self.world_pos[1] += self.vel[1] * mult
 
 
 if __name__ == '__main__':
@@ -239,7 +297,7 @@ if __name__ == '__main__':
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
 
     FPS = 120
-    CHUNKLOAD_RADIUS = 4
+    CHUNKLOAD_RADIUS = 3
     CHUNKSIZE = 64
     SCALING = 3
     PHYS_RATE = 10
@@ -257,10 +315,11 @@ if __name__ == '__main__':
     dt = 0
 
     projectileGroup = pg.sprite.Group()
+    enemyGroup = pg.sprite.Group()
 
     N = Noise()
     world = World()
-    player = Player(([CHUNKSIZE / 2, CHUNKSIZE / 2], [0, 0], -1, "tile_blue", 0, 40, True))
+    player = Player(([0, 0], [0, 0], -1, "tile_blue", 0, 40, 1000))
     thread = Thread(target=world.load_all)
     thread.start()
     while True:
@@ -273,8 +332,12 @@ if __name__ == '__main__':
                 k = event.key
             if event.type == pg.MOUSEBUTTONDOWN:
                 direction = [(pg.mouse.get_pos()[0] - (W / 2)) * 200 / W, (pg.mouse.get_pos()[1] - (H / 2)) * 200 / H]
-                projectileGroup.add(PhysicsEntity(([player.world_pos[0] + (direction[0] / 50),
-                        player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, "tile_red", 0, 20, 1.3)))
+                if pg.mouse.get_pressed(3)[0]:
+                    projectileGroup.add(PhysicsEntity(([player.world_pos[0] + (direction[0] / 50),
+                        player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, "tile_red", 0, 50, 1.3)))
+                else:
+                    enemyGroup.add(Enemy(([player.world_pos[0] + direction[0],
+                        player.world_pos[1] + direction[1]], [player.vel[0], player.vel[1]], -1, "tile_blue", 1, 50, 1.3)))
 
         SURF.fill((0, 0, 0))
         initial_load = initial_load or world.loading_check()
@@ -286,6 +349,8 @@ if __name__ == '__main__':
                 c.draw()
             projectileGroup.update()
             projectileGroup.draw(SURF)
+            enemyGroup.update()
+            enemyGroup.draw(SURF)
             player.update()
             SURF.blit(sprites["tile_blue"], (int(W / 2), int(H / 2)))
         else:
