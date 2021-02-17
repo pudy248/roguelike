@@ -2,8 +2,8 @@ import math, random, numpy
 
 class Noise:
     def __init__(self):
-        self.SCALE = 15
-        self.OCTAVES = 8
+        self.SCALE = 10
+        self.OCTAVES = 7
         self.PERSISTENCE = .5
         self.FRACTAL_RATIO = 1.7
         self.SEED = int(random.random() * 1000000)
@@ -16,7 +16,7 @@ class Noise:
         self.AVG_CUTOFF = 80
         self.AVG_EFFECT = .98
 
-        self.interp_scale = 8
+        self.interp_scale = 6
         self.points = {}
         self.points_avg = {}
 
