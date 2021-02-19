@@ -1,5 +1,6 @@
 import pygame as pg
 import time, sys, os, numpy
+from math import hypot
 from multiprocessing.pool import Pool
 from noise import Noise
 from threading import Thread
@@ -91,6 +92,9 @@ class World:
         self.threads.pop(coords)
         for t in self.chunks[coords].tiledict.values():
             self.global_tiledict.update({(t.pos[0], t.pos[1]): t})
+        numpy.random.seed(coords[0] * coords[1] + N.SEED)
+        for i in range(ENEMIES_PER_CHUNK):
+            enemyGroup.add(Enemy([(coords[0] + numpy.random.random()) * CHUNKSIZE, (coords[1] + numpy.random.random()) * CHUNKSIZE], [0, 0], -1, sprites["tile_blue"], 1, 50, 1.3))
         self.loading_check()
         print(str(int(self.percent_loaded * 100)) + " percent loaded")
 
@@ -209,7 +213,7 @@ class Player (PhysicsEntity):
                 self.world_pos[1] -= 1
             if [0, 1] in self.vectors:
                 while [0, 1] in self.vectors:
-                    self.world_pos[1] -= 0.006
+                    self.world_pos[1] -= 0.01
                     self.vector_recalc()
                 self.world_pos[1] += 0.01
                 self.vector_recalc()
@@ -245,11 +249,11 @@ class Player (PhysicsEntity):
 
 class Enemy (Player):
     def physics_update(self, mult):
-        if player.world_pos[0] < self.world_pos[0]:
+        if hypot(self.world_pos[0] - player.world_pos[0], self.world_pos[1] - player.world_pos[1]) < 100 and player.world_pos[0] < self.world_pos[0]:
             self.vel[0] -= (25 if [0, 1] in self.vectors else 7) * mult
-        elif player.world_pos[0] > self.world_pos[0]:
+        elif hypot(self.world_pos[0] - player.world_pos[0], self.world_pos[1] - player.world_pos[1]) < 100 and player.world_pos[0] > self.world_pos[0]:
             self.vel[0] += (25 if [0, 1] in self.vectors else 7) * mult
-        if [0, 1] in self.vectors and player.world_pos[1] < self.world_pos[1] and \
+        if hypot(self.world_pos[0] - player.world_pos[0], self.world_pos[1] - player.world_pos[1]) < 100 and [0, 1] in self.vectors and player.world_pos[1] < self.world_pos[1] and \
                 (world.get_tile_id(round(self.world_pos[0]) - numpy.sign(self.vel[0]), round(self.world_pos[1]) + 1) != 0 or
                 world.get_tile_id(round(self.world_pos[0]) - numpy.sign(self.vel[0]),
                 round(self.world_pos[1]) - 1) == 0):
@@ -262,7 +266,7 @@ class Enemy (Player):
                 self.world_pos[1] -= 1
             if [0, 1] in self.vectors:
                 while [0, 1] in self.vectors:
-                    self.world_pos[1] -= 0.006
+                    self.world_pos[1] -= 0.01
                     self.vector_recalc()
                 self.world_pos[1] += 0.01
                 self.vector_recalc()
@@ -306,11 +310,12 @@ if __name__ == '__main__':
     H =  pg.display.Info().current_h
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
 
-    FPS = 120
-    CHUNKLOAD_RADIUS = 4
+    FPS = 60
+    CHUNKLOAD_RADIUS = 2
     CHUNKSIZE = 64
-    SCALING = 5
-    PHYS_RATE = 10
+    SCALING = 10
+    PHYS_RATE = 1
+    ENEMIES_PER_CHUNK = 1
 
     sprites = {
         "tile_dark": pg.transform.scale(pg.image.load("sprites\\tile_dark.png"), (SCALING, SCALING)),
@@ -320,7 +325,7 @@ if __name__ == '__main__':
         "tile_green": pg.transform.scale(pg.image.load("sprites\\tile_green.png"), (SCALING, SCALING))
     }
 
-    fpsArr = [1] * FPS
+    fpsArr = [1] * 10
     timer = 0
     initial_load = False
 
@@ -357,11 +362,14 @@ if __name__ == '__main__':
             world.chunks_loadingupdate()
             for c in world.chunks.values():
                 c.draw()
-            projectileGroup.update()
+            proj = Thread(target=projectileGroup.update)
+            proj.start()
             projectileGroup.draw(SURF)
-            enemyGroup.update()
+            enmy = Thread(target=enemyGroup.update)
+            enmy.start()
             enemyGroup.draw(SURF)
-            playerGroup.update()
+            plr = Thread(target=enemyGroup.update)
+            plr.start()
             playerGroup.draw(SURF)
         else:
             player.time = time.perf_counter()
