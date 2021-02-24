@@ -2,9 +2,9 @@ import math, random, numpy
 
 class Noise:
     def __init__(self):
-        self.SCALE = 10
-        self.OCTAVES = 7
-        self.PERSISTENCE = .5
+        self.SCALE = 9
+        self.OCTAVES = 5
+        self.PERSISTENCE = .45
         self.FRACTAL_RATIO = 1.7
         self.SEED = int(random.random() * 1000000)
 
