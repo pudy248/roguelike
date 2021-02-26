@@ -150,7 +150,10 @@ class PhysicsEntity(pg.sprite.Sprite):
             if int(dt / PHYS_TIMESTEP) > 0:
                 for i in range(int(dt / PHYS_TIMESTEP)):
                     self.physics_update(PHYS_TIMESTEP)
-                    self.collide(projectileGroup)
+                    if self.stats is ProjStats:
+                        self.collide(enemyGroup)
+                    elif self is Enemy:
+                        self.collide(playerGroup)
                 self.time = time.perf_counter()
             self.rect = pg.Rect((self.world_pos[0] - player.world_pos[0]) * SCALING + W / 2,
                     (self.world_pos[1] - player.world_pos[1]) * SCALING + H / 2, SCALING, SCALING)
@@ -201,18 +204,9 @@ class PhysicsEntity(pg.sprite.Sprite):
         sprites = pg.sprite.spritecollide(self, group, False)
         for s in sprites:
             if s.team != self.team:
-                if s.stats is EnemyStats:
-                    if self.stats is EnemyStats:
-                        continue
-                    else:
-                        s.stats.damage(self.stats)
-                        self.remove(self.groups()[0])
-                else:
-                    s.remove(s.groups()[0])
-                    if self.stats is EnemyStats:
-                        self.stats.damage(s.stats)
-                    else:
-                        self.remove(self.groups()[0])
+                s.stats.damage(self.stats)
+                if self.stats is ProjStats and len(self.groups()) > 0:
+                    self.remove(self.groups()[0])
 
 
 class Player (PhysicsEntity):
@@ -329,7 +323,7 @@ class ProjStats:
 
 
 class EnemyStats:
-    def __init__(self, hp, max_hp, regen, armor, speed, grav, jump):
+    def __init__(self, hp, max_hp, regen, armor, speed, grav, jump, contact_damage):
         self.hp = hp
         self.max_hp = max_hp
         self.regen = regen
@@ -337,13 +331,47 @@ class EnemyStats:
         self.speed = speed
         self.grav = grav
         self.jump = jump
+        self.contact_damage = contact_damage
 
     def damage(self, stats):
-        self.hp -= stats.dmg * numpy.float_power(.95, self.armor - stats.pierce)
+        if stats is ProjStats:
+            self.hp -= stats.dmg * numpy.float_power(.95, self.armor - stats.pierce)
+        else:
+            self.hp -= stats.contact_damage * numpy.float_power(.95, self.armor)
+            stats.hp -= self.contact_damage * numpy.float_power(.95, stats.armor)
         print(self.hp)
 
 
+class UI:
+    def __init__(self, stats, ):
+        self.stats = stats
 
+    def render(self):
+        f = pg.font.SysFont("Arial", 15)
+        r = f.render(str([int(player.world_pos[0] * 100) / 100, int(player.world_pos[1] * 100) / 100]), True, pg.Color("red"))
+        SURF.blit(r, (5, 25))
+
+        f = pg.font.SysFont("Arial", 15)
+        r = f.render(str(int(sum(fpsArr) / len(fpsArr))), True, pg.Color("red"))
+        SURF.blit(r, (5, 5))
+        if not initial_load:
+            player.time = time.perf_counter()
+            f = pg.font.SysFont("Arial", 100, bold=True)
+            r = f.render(str(int(world.percent_loaded * 100)) + "% loaded", True, pg.Color("white"))
+            SURF.blit(r, ((W / 2) - r.get_width() / 2, (H / 2) - r.get_height() / 2))
+        else:
+            healthbar = Bar(pg.Rect(int(W - (W / 6)), int(H / 50), int(W / 6.5), int(H / 20)), (pg.Color("red"), pg.Color("white")))
+            #healthbar.render(self.stats.hp, self.stats.max_hp)
+
+
+class Bar:
+    def __init__(self, rect: pg.Rect, colors):
+        self.rect = rect
+        self.colors = colors
+    def render(self, value, max_value):
+        width = int(self.rect.width / (value / max_value))
+        pg.draw.rect(SURF, self.colors[0], pg.Rect(self.rect.left, self.rect.top, width, self.rect.height))
+        pg.draw.rect(SURF, self.colors[1], pg.Rect(self.rect.left + width, self.rect.top, self.rect.width - width , self.rect.height))
 
 
 if __name__ == '__main__':
@@ -354,12 +382,12 @@ if __name__ == '__main__':
     H = pg.display.Info().current_h
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
 
-    FPS = 120
+    FPS = 240
     CHUNKLOAD_RADIUS = 2
     CHUNKSIZE = 64
     SCALING = 5
-    PHYS_TIMESTEP = .005
-    ENEMIES_PER_CHUNK = 0
+    PHYS_TIMESTEP = .008
+    ENEMIES_PER_CHUNK = 1
 
     sprites = {
         "tile_dark": pg.transform.scale(pg.image.load("sprites\\tile_dark.png"), (SCALING, SCALING)),
@@ -378,12 +406,13 @@ if __name__ == '__main__':
     projectileGroup = pg.sprite.Group()
     enemyGroup = pg.sprite.Group()
 
-    enemy_data = EnemyStats(1000, 1000, 10, 100, 100, 100, 30)
+    enemy_data = EnemyStats(1000, 1000, 10, 100, 100, 100, 30, 5)
 
     N = Noise()
     world = World()
-    player = Player([0, 0], [0, 0], -1, sprites["tile_blue"], 0, 10000, EnemyStats(10, 10, 1, 10, 120, 100, 50))
+    player = Player([0, 0], [0, 0], -1, sprites["tile_blue"], 3, 10000, EnemyStats(100, 0, 1, 10, 120, 100, 50, 5))
     playerGroup.add(player)
+    UI = UI(player.stats)
     thread = Thread(target=world.load_all)
     thread.start()
     while True:
@@ -395,10 +424,6 @@ if __name__ == '__main__':
             if event.type == pg.KEYDOWN:
                 k = event.key
             if event.type == pg.MOUSEBUTTONDOWN:
-                #direction = [(pg.mouse.get_pos()[0] - (W / 2)) * 200 / W, (pg.mouse.get_pos()[1] - (H / 2)) * 200 / H]
-                #if pg.mouse.get_pressed(3)[0]:
-                    #projectileGroup.add(PhysicsEntity([player.world_pos[0] + (direction[0] / 50),
-                        #player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, sprites["tile_red"], 0, 1.3, ProjStats(1, 0, 100, 50)))
                 if pg.mouse.get_pressed(3)[2]:
                     player.world_pos = [player.world_pos[0] + (pg.mouse.get_pos()[0] - (W / 2)) / SCALING,
                         player.world_pos[1] + (pg.mouse.get_pos()[1] - (H / 2)) / SCALING]
@@ -408,12 +433,11 @@ if __name__ == '__main__':
             world.chunks_loadingupdate()
             for c in world.chunks.values():
                 c.draw()
-
             if pg.mouse.get_pressed(3)[0]:
-                if timer - projtimer > 0.05:
+                if timer - projtimer > 0.1:
                     direction = [(pg.mouse.get_pos()[0] - (W / 2)) * 200 / W,(pg.mouse.get_pos()[1] - (H / 2)) * 200 / H]
                     projectileGroup.add(PhysicsEntity([player.world_pos[0] + (direction[0] / 50),
-                        player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, sprites["tile_red"], 0, 1.3, ProjStats(1, 0, 100, 0)))
+                        player.world_pos[1] + (direction[1] / 50)], [direction[0] + player.vel[0], direction[1] + player.vel[1]], 5, sprites["tile_red"], 0, 1.3, ProjStats(10, 0, 100, 50)))
                     projtimer = timer
             proj = Thread(target=projectileGroup.update)
             proj.start()
@@ -424,19 +448,7 @@ if __name__ == '__main__':
             plr = Thread(target=playerGroup.update)
             plr.start()
             playerGroup.draw(SURF)
-
-            f = pg.font.SysFont("Arial", 15)
-            r = f.render(str([int(player.world_pos[0] * 100) / 100, int(player.world_pos[1] * 100) / 100]), True, pg.Color("red"))
-            SURF.blit(r, (5, 25))
-        else:
-            player.time = time.perf_counter()
-            f = pg.font.SysFont("Arial", 100, bold=True)
-            r = f.render(str(int(world.percent_loaded * 100)) + "% loaded", True, pg.Color("white"))
-            SURF.blit(r, ((W / 2) - r.get_width() / 2, (H / 2) - r.get_height() / 2))
-        f = pg.font.SysFont("Arial", 15)
-        r = f.render(str(int(sum(fpsArr) / len(fpsArr))), True, pg.Color("red"))
-        SURF.blit(r, (5, 5))
-
+        UI.render()
         pg.display.update()
         clock.tick(FPS)
         fpsArr.append(1 / (time.perf_counter() - timer))
