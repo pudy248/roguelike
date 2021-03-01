@@ -1,9 +1,14 @@
-import pygame as pg
-import time, sys, os, numpy
+import numpy
+import os
+import sys
+import time
 from math import hypot
 from multiprocessing.pool import Pool
-from noise import Noise
 from threading import Thread
+
+import pygame as pg
+
+from noise import Noise
 
 
 class Tile:
@@ -39,7 +44,7 @@ class Chunk:
                 surface = pg.Surface((CHUNKSIZE, CHUNKSIZE))
                 for k in self.tiledict.keys():
                     tile = self.tiledict[k]
-                    a = world.get_tile_id(tile.pos[0] - 1, tile.pos[1]) == 1 or world.get_tile_id(tile.pos[0] + 1, tile.pos[1]) == 1 or world.get_tile_id(tile.pos[0], tile.pos[1] + 1) == 1 or  world.get_tile_id(tile.pos[0], tile.pos[1] - 1) == 1
+                    a = world.get_tile_id(tile.pos[0] - 1, tile.pos[1]) == 1 or world.get_tile_id(tile.pos[0] + 1, tile.pos[1]) == 1 or world.get_tile_id(tile.pos[0], tile.pos[1] + 1) == 1 or world.get_tile_id(tile.pos[0], tile.pos[1] - 1) == 1
                     surface.blit((tile_green if a else tile_dark) if tile.id == 0 else tile_light, (k[0], k[1]))
                 surface = pg.transform.scale(surface, (CHUNKSIZE * SCALING, CHUNKSIZE * SCALING))
                 world.surfaces.update({self.pos: surface})
@@ -119,18 +124,19 @@ class World:
         else:
             return None
 
+
 def enemy_choose(x):
     r = numpy.random.random()
     f = min(1, numpy.exp(-x/30))
     temp = numpy.exp((25 - x) / 10)
-    g1 = temp / numpy.power(1 + temp, 2) * 2.9
-    g = max(0, g1 - (numpy.exp(2.5) / numpy.power(1 + numpy.exp(2.5), 2) * 2.9))
+    g = max(0, (temp / numpy.power(1 + temp, 2) * 2.9) - (numpy.exp(2.5) / numpy.power(1 + numpy.exp(2.5), 2) * 2.9)) + f
     if r < f:
         return normal_data
     elif f < r < g:
         return elite_data
     else:
         return boss_data
+
 
 class PhysicsEntity(pg.sprite.Sprite):
     def __init__(self, pos, vel, lifetime, image, team, rebound, stats):
@@ -146,6 +152,7 @@ class PhysicsEntity(pg.sprite.Sprite):
         self.stats = stats
         velmult = hypot(vel[0], vel[1]) / stats.speed + 0.0001
         self.vel = [vel[0] / velmult, vel[1] / velmult]
+        self.rect = pg.Rect((0, 0, 1, 1))
 
     def update(self):
         if hypot(self.world_pos[0] - player.world_pos[0], self.world_pos[1] - player.world_pos[1]) > CHUNKSIZE * (CHUNKLOAD_RADIUS + 2):
@@ -176,6 +183,8 @@ class PhysicsEntity(pg.sprite.Sprite):
                 elif self.stats.str == "B":
                     self.rect = pg.Rect((self.world_pos[0] - player.world_pos[0]) * SCALING + W / 2 - SCALING,
                         (self.world_pos[1] - player.world_pos[1]) * SCALING + H / 2 - SCALING * 5, SCALING * 3, SCALING * 6)
+                    hp = Bar(pg.Rect(self.rect.left - (SCALING * 3), self.rect.top - (SCALING * 2), self.rect.width + SCALING * 6, SCALING), (pg.Color("red"), pg.Color("white")))
+                    hp.render(self.stats.hp, self.stats.max_hp)
                 else:
                     self.rect = pg.Rect((self.world_pos[0] - player.world_pos[0]) * SCALING + W / 2,
                         (self.world_pos[1] - player.world_pos[1]) * SCALING + H / 2 - SCALING, SCALING, SCALING * 2)
@@ -318,7 +327,7 @@ class Enemy (Player):
                     else:
                         self.world_pos[0] -= -0.2
                     if self.vel[0] > 0 and world.get_tile_id(
-                        round(self.world_pos[0]) + 1, round(self.world_pos[1])) == 0:
+                            round(self.world_pos[0]) + 1, round(self.world_pos[1])) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= 0.2
@@ -370,7 +379,7 @@ class EnemyStats:
             self.hp = self.max_hp
 
     def __copy__(self):
-        return EnemyStats(self.str, self.hp, self.max_hp, self.regen, self.armor, self.speed, self.grav, self.jump, self.contact_damage)
+        return EnemyStats(self.str, self.max_hp, self.regen, self.armor, self.speed, self.grav, self.jump, self.contact_damage)
 
 
 class UI:
@@ -401,7 +410,7 @@ class Bar:
     def render(self, value, max_value):
         width = max(0, int(self.rect.width * (max(0.0001, value) / max_value)))
         pg.draw.rect(SURF, self.colors[0], pg.Rect(self.rect.left, self.rect.top, width, self.rect.height))
-        pg.draw.rect(SURF, self.colors[1], pg.Rect(self.rect.left + width, self.rect.top, self.rect.width - width , self.rect.height))
+        pg.draw.rect(SURF, self.colors[1], pg.Rect(self.rect.left + width, self.rect.top, self.rect.width - width, self.rect.height))
 
 
 if __name__ == '__main__':
@@ -415,7 +424,7 @@ if __name__ == '__main__':
     FPS = 60
     CHUNKLOAD_RADIUS = 3
     CHUNKSIZE = 64
-    SCALING = 4
+    SCALING = 10
     PHYS_TIMESTEP = .008
     ENEMIES_PER_CHUNK = 1
 
@@ -436,13 +445,13 @@ if __name__ == '__main__':
     projectileGroup = pg.sprite.Group()
     enemyGroup = pg.sprite.Group()
 
-    normal_data = EnemyStats("N", 200, 5, 0, 100, 100, 30, 20)
-    elite_data = EnemyStats("E", 2000, 50, 30, 30, 100, 20, 1000000)
-    boss_data = EnemyStats("B", 10000, 0, 80, 30, 200, 10, 1000000)
+    normal_data = EnemyStats("N", 150, 5, 0, 100, 100, 30, 10)
+    elite_data = EnemyStats("E", 1000, 20, 30, 30, 100, 20, 100)
+    boss_data = EnemyStats("B", 10000, 0, 80, 30, 100, 10, 1000000)
 
     N = Noise()
     world = World()
-    player = Player([0, 0], [0, 0], -1, sprites["tile_blue"], 3, 10000, EnemyStats("PLR", 100, 10, 20, 120, 100, 50, 20))
+    player = Player([0, 0], [0, 0], -1, sprites["tile_blue"], 3, 10000, EnemyStats("PLR", 100, 3, 20, 120, 100, 50, 20))
     playerGroup.add(player)
     UI = UI(player.stats)
     thread = Thread(target=world.load_all)
