@@ -163,8 +163,8 @@ class PhysicsEntity(pg.sprite.Sprite):
             dt = time.perf_counter() - self.time
             for i in range(PHYS_TIMESTEP):
                 self.physics_update(dt / PHYS_TIMESTEP)
+                self.collide(projectileGroup)
                 if self.stats.str in ["N", "E", "B"]:
-                    self.collide(projectileGroup)
                     self.collide(playerGroup)
                 self.stats.update(dt / PHYS_TIMESTEP)
                 self.rect_calc()
@@ -177,7 +177,16 @@ class PhysicsEntity(pg.sprite.Sprite):
                 player_stats.xp += 2 if self.stats.str == "N" else (40 if self.stats.str == "e" else 300)
                 self.groups()[0].remove(self)
             if self.stats.str in ["N", "E", "B"] and time.perf_counter() - self.proj_cd > self.stats.fire_rate:
-                pass
+                proj = enemy_projectile_normal if self.stats.str == "N" else enemy_projectile_strong
+                extras = [player.world_pos[0] - self.world_pos[0], player.world_pos[1] - self.world_pos[1],
+                          -proj.grav, proj.speed]
+                peak = zero(proj_func_derivative, 0.5, 0.01, extras)
+                if proj_func(peak, extras) > 0:
+                    theta = zero(proj_func, 0.5, 0.01, extras)
+                    direction = [numpy.cos(theta), numpy.sin(theta)]
+                    projectileGroup.add(PhysicsEntity([self.world_pos[0] + (direction[0] / 50), self.world_pos[1] +
+                        (direction[1] / 50) - 0.7],  direction, 5, sprites["tile_red"], 1, 1.3, proj.__copy__()))
+                    self.proj_cd = time.perf_counter()
 
     def rect_calc(self):
         if self.stats.str in ["PLR_P", "NP"]:
@@ -212,7 +221,10 @@ class PhysicsEntity(pg.sprite.Sprite):
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
-                self.world_pos[1] -= 1
+                while [0, 0] in self.vectors:
+                    self.world_pos[0] -= self.vel[0] * 0.001
+                    self.world_pos[1] -= self.vel[1] * 0.001
+                    self.vector_recalc()
             if [0, 1] in self.vectors or [0, -1] in self.vectors:
                 self.vel[1] /= -self.rebound
                 self.vel[0] /= self.rebound
@@ -252,6 +264,32 @@ class PhysicsEntity(pg.sprite.Sprite):
                     s.remove(s.groups()[0])
 
 
+def zero(func, i, d0, extras):
+    tolerance = 0.003
+    d = d0
+    o = i
+    print(o, func(o, extras))
+    while abs(func(o, extras)) > tolerance:
+        a = func(o, extras)
+        b = func(o + d, extras)
+        c = func(o - d, extras)
+        m1 = (a - c) / d
+        m2 = (b - a) / d
+        m = m1 if abs(m1) > abs(m2) else m2
+        print("m: " + str(m))
+        d = (func(o, extras) / m) * .2
+        print("d: " + str(d))
+        o -= d
+        print(o, func(o, extras))
+    return o
+
+def proj_func(t, extras):
+    return extras[0] * numpy.tan(t) + (extras[3] * extras[0] ** 2) / (2 * extras[2] ** 2 * (numpy.cos(t)) ** 2) + extras[1]
+
+def proj_func_derivative(t, extras):
+    return ((extras[0] ** 2 * extras[3] * numpy.tan(t)) / (extras[2] ** 2) + extras[0]) / (numpy.cos(t) ** 2)
+
+
 class Player (PhysicsEntity):
     def physics_update(self, mult):
         if pg.key.get_pressed()[pg.K_a]:
@@ -265,7 +303,10 @@ class Player (PhysicsEntity):
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
-                self.world_pos[1] -= 1
+                while [0, 0] in self.vectors:
+                    self.world_pos[0] -= self.vel[0] * 0.001
+                    self.world_pos[1] -= self.vel[1] * 0.001
+                    self.vector_recalc()
             if [0, 1] in self.vectors:
                 while [0, 1] in self.vectors:
                     self.world_pos[1] -= 0.01
@@ -318,7 +359,10 @@ class Enemy (Player):
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
-                self.world_pos[1] -= 1
+                while [0, 0] in self.vectors:
+                    self.world_pos[0] -= self.vel[0] * 0.001
+                    self.world_pos[1] -= self.vel[1] * 0.001
+                    self.vector_recalc()
             if [0, 1] in self.vectors:
                 while [0, 1] in self.vectors:
                     self.world_pos[1] -= 0.01
@@ -484,7 +528,7 @@ if __name__ == '__main__':
     CHUNKLOAD_RADIUS = 3
     CHUNKSIZE = 64
     SCALING = 15
-    PHYS_TIMESTEP = 20
+    PHYS_TIMESTEP = 5
     ENEMIES_PER_CHUNK = 1
     CONTACT_CD = 0.5
 
@@ -507,10 +551,10 @@ if __name__ == '__main__':
     projectileGroup = pg.sprite.Group()
     enemyGroup = pg.sprite.Group()
 
-    normal_enemy = EnemyStats("N", 150, 2, 0, 100, 100, 30, 10, .5)
+    normal_enemy = EnemyStats("N", 150, 2, 0, 100, 100, 30, 10, 2)
     elite_enemy = EnemyStats("E", 1000, 10, 30, 30, 100, 20, 100, 1.5)
     boss_enemy = EnemyStats("B", 10000, 50, 80, 30, 100, 10, 1000000, .3)
-    enemy_projectile_normal = ProjStats("NP", 20, 5, 80, 60)
+    enemy_projectile_normal = ProjStats("NP", 20, 5, 50, 60)
     enemy_projectile_strong = ProjStats("EP", 80, 20, 30, 40)
     player_projectile = ProjStats("PLR_P", 20, 0, 100, 60)
 
@@ -567,3 +611,16 @@ if __name__ == '__main__':
         clock.tick(FPS)
         fpsArr.append(1 / (time.perf_counter() - timer))
         del fpsArr[0]
+
+"""
+TODO:
+-broken autostep
+- L A G
+-no enemy projectiles bc math is hard
+-da boss healthbar is rendered during physics calculation, which causes some funky issues
+-no upgrade ui
+-balancing
+-the game sucks. boring to play. progression is bad.
+-no graphics (will not fix)
+-messy code (not an issue just yet)
+"""
