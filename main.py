@@ -92,7 +92,7 @@ class World:
         for t in self.chunks[coords].tiledict.values():
             self.global_tiledict.update({(t.pos[0], t.pos[1]): t})
         numpy.random.seed(coords[0] * coords[1] + N.SEED)
-        for i in range(int(ENEMIES_PER_CHUNK * numpy.power(1.08, min(20, coords[1])))):
+        for i in range(int(ENEMIES_PER_CHUNK * numpy.power(1.05, min(30, coords[1])))):
             enemyGroup.add(Enemy([(coords[0] + numpy.random.random()) * CHUNKSIZE,
                 (coords[1] + numpy.random.random()) * CHUNKSIZE], [0, 0], -1, sprites["tile_blue"], 1, 10000, enemy_choose(coords[1] * 2).__copy__()))
         self.loading_check()
@@ -163,7 +163,8 @@ class PhysicsEntity(pg.sprite.Sprite):
             dt = time.perf_counter() - self.time
             for i in range(PHYS_TIMESTEP):
                 self.physics_update(dt / PHYS_TIMESTEP)
-                self.collide(projectileGroup)
+                if self.stats.str not in ["PLR_P", "NP", "EP"]:
+                    self.collide(projectileGroup)
                 if self.stats.str in ["N", "E", "B"]:
                     self.collide(playerGroup)
                 self.stats.update(dt / PHYS_TIMESTEP)
@@ -174,18 +175,18 @@ class PhysicsEntity(pg.sprite.Sprite):
                 if self.lifetime < 0 < len(self.groups()):
                     self.groups()[0].remove(self)
             if self.stats.str in ["N", "E", "B"] and self.stats.hp <= 0 < len(self.groups()):
-                player_stats.xp += 2 if self.stats.str == "N" else (40 if self.stats.str == "e" else 300)
+                player_stats.xp += 2 if self.stats.str == "N" else (40 if self.stats.str == "E" else 300)
                 self.groups()[0].remove(self)
             if self.stats.str in ["N", "E", "B"] and time.perf_counter() - self.proj_cd > self.stats.fire_rate:
                 proj = enemy_projectile_normal if self.stats.str == "N" else enemy_projectile_strong
-                extras = [player.world_pos[0] - self.world_pos[0], player.world_pos[1] - self.world_pos[1],
+                extras = [self.world_pos[0] - player.world_pos[0], self.world_pos[1] - player.world_pos[1],
                           -proj.grav, proj.speed]
-                peak = zero(proj_func_derivative, 0.5, 0.01, extras)
-                if proj_func(peak, extras) > 0:
-                    theta = zero(proj_func, 0.5, 0.01, extras)
-                    direction = [numpy.cos(theta), numpy.sin(theta)]
-                    projectileGroup.add(PhysicsEntity([self.world_pos[0] + (direction[0] / 50), self.world_pos[1] +
-                        (direction[1] / 50) - 0.7],  direction, 5, sprites["tile_red"], 1, 1.3, proj.__copy__()))
+                if hypot(extras[0], extras[1]) < 80:
+                    theta = zero(proj_func, (0, numpy.pi / 4), 10, extras)
+                    if theta is not None:
+                        direction = [numpy.cos(theta), numpy.sin(theta)]
+                        projectileGroup.add(PhysicsEntity([self.world_pos[0] + (direction[0] / 50), self.world_pos[1] +
+                                (direction[1] / 50) - 0.7],  direction, 5, sprites["tile_red"], 1, 1.3, proj.__copy__()))
                     self.proj_cd = time.perf_counter()
 
     def rect_calc(self):
@@ -221,10 +222,13 @@ class PhysicsEntity(pg.sprite.Sprite):
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
-                while [0, 0] in self.vectors:
-                    self.world_pos[0] -= self.vel[0] * 0.001
-                    self.world_pos[1] -= self.vel[1] * 0.001
-                    self.vector_recalc()
+                if hypot(self.vel[0], self.vel[1]) > 5:
+                    while [0, 0] in self.vectors:
+                        self.world_pos[0] -= self.vel[0] * 0.01
+                        self.world_pos[1] -= self.vel[1] * 0.01
+                        self.vector_recalc()
+                else:
+                    self.world_pos[1] -= 1
             if [0, 1] in self.vectors or [0, -1] in self.vectors:
                 self.vel[1] /= -self.rebound
                 self.vel[0] /= self.rebound
@@ -264,30 +268,35 @@ class PhysicsEntity(pg.sprite.Sprite):
                     s.remove(s.groups()[0])
 
 
-def zero(func, i, d0, extras):
-    tolerance = 0.003
-    d = d0
-    o = i
-    print(o, func(o, extras))
-    while abs(func(o, extras)) > tolerance:
-        a = func(o, extras)
-        b = func(o + d, extras)
-        c = func(o - d, extras)
-        m1 = (a - c) / d
-        m2 = (b - a) / d
-        m = m1 if abs(m1) > abs(m2) else m2
-        print("m: " + str(m))
-        d = (func(o, extras) / m) * .2
-        print("d: " + str(d))
-        o -= d
-        print(o, func(o, extras))
-    return o
+def zero(func, bounds, points, extras):
+    delta = (bounds[1] - bounds[0]) / points
+    p1 = [0, func(0, extras)]
+    p2 = [delta, func(delta, extras)]
+    tempbool = False
+    for i in range(points):
+        if numpy.sign(p1[1]) != numpy.sign(p2[1]):
+            tempbool = True
+            break
+        p1[0] += delta
+        p2[0] += delta
+        p1[1] = func(p1[0], extras)
+        p2[1] = func(p2[0], extras)
+    if tempbool:
+        p3 = [(p1[0] + p2[0]) / 2, func((p1[0] + p2[0]) / 2, extras)]
+        while p3[1] > 0.01:
+            if numpy.sign(p1[1]) != numpy.sign(p3[1]):
+                p2 = p3
+            elif numpy.sign(p2[1]) != numpy.sign(p3[1]):
+                p1 = p3
+            else:
+                return None
+            p3 = [(p1[0] + p2[0]) / 2, func((p1[0] + p2[0]) / 2, extras)]
+        return p3[1]
+    return None
+
 
 def proj_func(t, extras):
-    return extras[0] * numpy.tan(t) + (extras[3] * extras[0] ** 2) / (2 * extras[2] ** 2 * (numpy.cos(t)) ** 2) + extras[1]
-
-def proj_func_derivative(t, extras):
-    return ((extras[0] ** 2 * extras[3] * numpy.tan(t)) / (extras[2] ** 2) + extras[0]) / (numpy.cos(t) ** 2)
+    return extras[0] * numpy.tan(t) - (extras[3] * extras[0] ** 2) / (2 * extras[2] ** 2 * (numpy.cos(t)) ** 2) + extras[1]
 
 
 class Player (PhysicsEntity):
@@ -303,10 +312,13 @@ class Player (PhysicsEntity):
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
-                while [0, 0] in self.vectors:
-                    self.world_pos[0] -= self.vel[0] * 0.001
-                    self.world_pos[1] -= self.vel[1] * 0.001
-                    self.vector_recalc()
+                if hypot(self.vel[0], self.vel[1]) > 5:
+                    while [0, 0] in self.vectors:
+                        self.world_pos[0] -= self.vel[0] * 0.01
+                        self.world_pos[1] -= self.vel[1] * 0.01
+                        self.vector_recalc()
+                else:
+                    self.world_pos[1] -= 1
             if [0, 1] in self.vectors:
                 while [0, 1] in self.vectors:
                     self.world_pos[1] -= 0.01
@@ -325,11 +337,11 @@ class Player (PhysicsEntity):
                 self.world_pos[1] += 0.2
             if [1, 0] in self.vectors or [-1, 0] in self.vectors:
                 if [0, 1] in self.vectors:
-                    if self.vel[0] < 0 and world.get_tile_id(round(self.world_pos[0]) - 1, round(self.world_pos[1])) == 0:
+                    if self.vel[0] < 0 and world.get_tile_id(round(self.world_pos[0]) - 1, round(self.world_pos[1]) - 1) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= -0.2
-                    if self.vel[0] > 0 and world.get_tile_id(round(self.world_pos[0]) + 1, round(self.world_pos[1])) == 0:
+                    if self.vel[0] > 0 and world.get_tile_id(round(self.world_pos[0]) + 1, round(self.world_pos[1]) - 1) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= 0.2
@@ -343,7 +355,7 @@ class Player (PhysicsEntity):
         self.world_pos[1] += self.vel[1] * mult
 
 
-class Enemy (Player):
+class Enemy (PhysicsEntity):
     def physics_update(self, mult):
         if hypot(self.world_pos[0] - player.world_pos[0], self.world_pos[1] - player.world_pos[1]) < 100 and player.world_pos[0] < self.world_pos[0]:
             self.vel[0] -= (self.stats.speed if [0, 1] in self.vectors else self.stats.speed / 4) * mult
@@ -359,10 +371,13 @@ class Enemy (Player):
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors:
-                while [0, 0] in self.vectors:
-                    self.world_pos[0] -= self.vel[0] * 0.001
-                    self.world_pos[1] -= self.vel[1] * 0.001
-                    self.vector_recalc()
+                if hypot(self.vel[0], self.vel[1]) > 5:
+                    while [0, 0] in self.vectors:
+                        self.world_pos[0] -= self.vel[0] * 0.01
+                        self.world_pos[1] -= self.vel[1] * 0.01
+                        self.vector_recalc()
+                else:
+                    self.world_pos[1] -= 1
             if [0, 1] in self.vectors:
                 while [0, 1] in self.vectors:
                     self.world_pos[1] -= 0.01
@@ -382,12 +397,12 @@ class Enemy (Player):
             if [1, 0] in self.vectors or [-1, 0] in self.vectors:
                 if [0, 1] in self.vectors:
                     if self.vel[0] < 0 and world.get_tile_id(
-                            round(self.world_pos[0]) - 1, round(self.world_pos[1])) != 0:
+                            round(self.world_pos[0]) - 1, round(self.world_pos[1])) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= -0.2
                     if self.vel[0] > 0 and world.get_tile_id(
-                            round(self.world_pos[0]) + 1, round(self.world_pos[1])) != 0:
+                            round(self.world_pos[0]) + 1, round(self.world_pos[1])) == 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= 0.2
@@ -456,27 +471,26 @@ class PlayerStats:
         self.firepower = 0
         self.marksmanship = 0
         self.accuracy = 0
-        self.xp = 0
+        self.xp = 5000
         self.lvl = 0
+        self.points = 0
 
     def stats_recalc(self):
-        if self.xp - (numpy.power(self.lvl, 2) * 5) >= numpy.power(self.lvl + 1, 2) * 5:
+        if self.xp >= numpy.power(self.lvl + 1, 2) * 5:
             self.lvl += 1
-            self.defense += 2
-            self.agility += 2
-            self.firepower += 2
-            self.marksmanship += 2
+            self.points += 2
+            self.xp -= numpy.power(self.lvl, 2) * 5
         player.stats.max_hp = 100 + self.defense * 25
         player.stats.armor = 5 * self.defense
         player.stats.regen = 2 + self.defense * .75
-        player.stats.speed = 120 + 10 * self.agility - 15 * self.defense
-        player.stats.jump = 50 + 5 * self.agility - 7 * self.defense
+        player.stats.speed = 120 + 10 * self.agility * numpy.power(.9, self.defense)
+        player.stats.jump = 50 + 5 * self.agility * numpy.power(.9, self.defense)
         player.stats.fire_rate = .5 / (numpy.exp(self.firepower / -10) * (1 + 0.2 * self.marksmanship))
         player_projectile.dmg = 50 + 10 * self.firepower
         player_projectile.pierce = 3 * self.marksmanship
         player_projectile.speed = (100 + 20 * self.marksmanship) * numpy.exp(self.firepower / -20)
         player_projectile.grav = (60 + 10 * self.marksmanship) * numpy.exp(self.firepower / -25)
-        self.accuracy = numpy.exp(self.marksmanship / -4) / 6
+        self.accuracy = numpy.exp(self.marksmanship / -4) / 10
 
 
 class UI:
@@ -489,15 +503,32 @@ class UI:
         SURF.blit(r, (5, 5))
         if not initial_load:
             player.time = time.perf_counter()
-            loading_bar = Bar(pg.Rect(int(W / 4), int(H / 2.2), int(W / 2), int(H / 10)), (pg.Color("blue"), pg.Color("white")), False)
+            loading_bar = Bar(pg.Rect(int(W * .25), int(H * .454), int(W * .5), int(H * .1)), (pg.Color("blue"), pg.Color("white")), False)
             loading_bar.render(world.percent_loaded, 1)
         else:
-            healthbar = Bar(pg.Rect(int(W - (W / 100) - int(W / 6)), int(W / 100), int(W / 6), int(W / 50)), (pg.Color("red"), pg.Color("white")), True)
+            healthbar = Bar(pg.Rect(int(W * .823), int(W * .01), int(W * .166), int(W * .02)), (pg.Color("red"), pg.Color("white")), True)
             healthbar.render(player.stats.hp, player.stats.max_hp)
-            exp_bar = Bar(pg.Rect(int(W - (W / 100) - int(W / 6)), int(W / 50) + int(W / 75), int(W / 6), int(W / 50)), (pg.Color("cyan"), pg.Color("white")), True)
-            exp_bar.render(player_stats.xp - (numpy.power(player_stats.lvl, 2) * 5), numpy.power(player_stats.lvl + 1, 2) * 5)
+            exp_bar = Bar(pg.Rect(int(W * .823), int(W * .033), int(W * .166), int(W * .02)), (pg.Color("cyan"), pg.Color("white")), True)
+            exp_bar.render(player_stats.xp, numpy.power(player_stats.lvl + 1, 2) * 5)
             if UI_bool:
-                f = pg.font.SysFont("Arial", int(W / 20))
+                for b in buttons:
+                    b.render()
+                f = pg.font.SysFont("Arial", int(W * .028))
+                r = f.render("Marksmanship: " + str(player_stats.marksmanship), True, pg.Color("white"))
+                SURF.blit(r, (W * .935 - r.get_width(), H - W * .052 + (W * .04 - r.get_height()) / 2))
+                r = f.render("Firepower: " + str(player_stats.firepower), True, pg.Color("white"))
+                SURF.blit(r, (W * .935 - r.get_width(), H - W * .105 + (W * .04 - r.get_height()) / 2))
+                r = f.render("Agility: " + str(player_stats.agility), True, pg.Color("white"))
+                SURF.blit(r, (W * .935 - r.get_width(), H - W * .157 + (W * .04 - r.get_height()) / 2))
+                r = f.render("Defense: " + str(player_stats.defense), True, pg.Color("white"))
+                SURF.blit(r, (W * .935 - r.get_width(), H - W * .21 + (W * .04 - r.get_height()) / 2))
+                r = f.render("Points: " + str(player_stats.points), True, pg.Color("white"))
+                SURF.blit(r, (W * .987 - r.get_width(), H - W * .262 + (W * .04 - r.get_height()) / 2))
+            else:
+                if player_stats.points > 0:
+                    f = pg.font.SysFont("Arial", int(W * .013))
+                    r = f.render("Press [TAB] for upgrades!", True, pg.Color("white"))
+                    SURF.blit(r, (W * .987 - r.get_width(), W * .056))
 
 
 class Bar:
@@ -516,6 +547,21 @@ class Bar:
             SURF.blit(r, (self.rect.left + self.rect.width / 2 - r.get_width() / 2, self.rect.top + self.rect.height / 2 - r.get_height() / 2))
 
 
+class Button:
+    def __init__(self, rect: pg.Rect, color, text, func, params):
+        self.rect = rect
+        self.color = color
+        self.text = text
+        self.func = func
+        self.params = params
+
+    def render(self):
+        pg.draw.rect(SURF, self.color, self.rect)
+        f = pg.font.SysFont("Arial", int(self.rect.height * .7))
+        r = f.render(self.text, True, pg.Color("black"))
+        SURF.blit(r, (self.rect.left + self.rect.width / 2 - r.get_width() / 2, self.rect.top + self.rect.height / 2 - r.get_height() / 2))
+
+
 if __name__ == '__main__':
     os.environ['SDL_VIDEO_CENTERED'] = '1'
     pg.init()
@@ -525,12 +571,12 @@ if __name__ == '__main__':
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
 
     FPS = 60
-    CHUNKLOAD_RADIUS = 3
+    CHUNKLOAD_RADIUS = 4
     CHUNKSIZE = 64
     SCALING = 15
-    PHYS_TIMESTEP = 5
-    ENEMIES_PER_CHUNK = 1
-    CONTACT_CD = 0.5
+    PHYS_TIMESTEP = 4
+    ENEMIES_PER_CHUNK = 2
+    CONTACT_CD = 1
 
     sprites = {
         "tile_dark": pg.transform.scale(pg.image.load("sprites\\tile_dark.png"), (SCALING, SCALING)),
@@ -546,6 +592,7 @@ if __name__ == '__main__':
     initial_load = False
     projtimer = 0
     UI_bool = False
+    buttons = []
 
     playerGroup = pg.sprite.Group()
     projectileGroup = pg.sprite.Group()
@@ -560,12 +607,21 @@ if __name__ == '__main__':
 
     N = Noise()
     world = World()
-    player = Player([0, 0], [0, 0], -1, sprites["player"], 3, 10000, EnemyStats("PLR", 100, 2, 20, 120, 100, 50, 20, 1))
+    player = Player([0, 0], [0, 0], -1, sprites["player"], 0, 10000, EnemyStats("PLR", 100, 2, 20, 120, 100, 50, 20, 1))
     playerGroup.add(player)
     player_stats = PlayerStats()
     UI = UI()
     thread = Thread(target=world.load_all)
     thread.start()
+
+    def stat_up(params):
+        if player_stats.points > 0:
+            vars(player_stats)[params[0]] += 1
+            player_stats.points -= 1
+    buttons.append(Button(pg.Rect(W * .947, H - W * .052, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["marksmanship"]))
+    buttons.append(Button(pg.Rect(W * .947, H - W * .105, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["firepower"]))
+    buttons.append(Button(pg.Rect(W * .947, H - W * .157, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["agility"]))
+    buttons.append(Button(pg.Rect(W * .947, H - W * .21, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["defense"]))
     while True:
         timer = time.perf_counter()
         for event in pg.event.get():
@@ -580,6 +636,11 @@ if __name__ == '__main__':
                 if pg.mouse.get_pressed(3)[2]:
                     player.world_pos = [player.world_pos[0] + (pg.mouse.get_pos()[0] - (W / 2)) / SCALING,
                         player.world_pos[1] + (pg.mouse.get_pos()[1] - (H / 2)) / SCALING]
+                elif pg.mouse.get_pressed(3)[0] and UI_bool:
+                    for b in buttons:
+                        if b.rect.left <= pg.mouse.get_pos()[0] <= b.rect.right and\
+                                b.rect.top <= pg.mouse.get_pos()[1] <= b.rect.bottom:
+                            b.func(b.params)
         SURF.fill((0, 0, 0))
         if not initial_load and world.loading_check():
             initial_load = True
@@ -590,7 +651,7 @@ if __name__ == '__main__':
             for c in world.chunks.values():
                 c.draw()
             if pg.mouse.get_pressed(3)[0]:
-                if timer - projtimer > 1 / player.stats.fire_rate:
+                if timer - projtimer > 1 / player.stats.fire_rate and not UI_bool:
                     direction = [(pg.mouse.get_pos()[0] - (W / 2)) / W, (pg.mouse.get_pos()[1] - (H / 2)) / H]
                     direction[0] += (numpy.random.random() - .5) * player_stats.accuracy * hypot(direction[0], direction[1]) * 2
                     direction[1] += (numpy.random.random() - .5) * player_stats.accuracy * hypot(direction[0], direction[1]) * 2
@@ -615,10 +676,7 @@ if __name__ == '__main__':
 """
 TODO:
 -broken autostep
-- L A G
--no enemy projectiles bc math is hard
 -da boss healthbar is rendered during physics calculation, which causes some funky issues
--no upgrade ui
 -balancing
 -the game sucks. boring to play. progression is bad.
 -no graphics (will not fix)
