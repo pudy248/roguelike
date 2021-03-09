@@ -5,9 +5,7 @@ import time
 from math import hypot
 from multiprocessing.pool import Pool
 from threading import Thread
-
 import pygame as pg
-
 from noise import Noise
 
 
@@ -79,6 +77,7 @@ class World:
             self.load_chunk(k)
 
     def load_chunk(self, coords):
+        print("load " + str(coords))
         if coords not in self.threads.keys():
             self.chunks.update({coords: Chunk(coords)})
             self.threads.update({coords: self.pool.apply_async(self.chunks[coords].generate, (CHUNKSIZE, N))})
@@ -99,12 +98,14 @@ class World:
         print(str(int(self.percent_loaded * 100)) + " percent loaded")
 
     def unload_chunk(self, coords):
+        print("unload")
         if coords in self.chunks.keys() and self.chunks[coords].loaded:
             if coords in self.surfaces.keys():
                 self.surfaces.pop(coords)
             for k in self.chunks[coords].tiledict.keys():
                 self.global_tiledict.pop(self.chunks[coords].tiledict[k].pos)
             self.chunks.pop(coords)
+        print("unload done")
 
     def chunks_loadingupdate(self):
         center = (int(player.world_pos[0] / CHUNKSIZE), int(player.world_pos[1] / CHUNKSIZE))
@@ -221,7 +222,7 @@ class PhysicsEntity(pg.sprite.Sprite):
         self.vel[1] += self.stats.grav * mult
         self.vector_recalc()
         if len(self.vectors) > 0:
-            if [0, 0] in self.vectors:
+            if [0, 0] in self.vectors and (round(self.world_pos[0]), round(self.world_pos[1])) in world.global_tiledict.keys():
                 if hypot(self.vel[0], self.vel[1]) > 5:
                     while [0, 0] in self.vectors:
                         self.world_pos[0] -= self.vel[0] * 0.01
@@ -311,7 +312,7 @@ class Player (PhysicsEntity):
         self.vel[1] += self.stats.grav * mult
         self.vector_recalc()
         if len(self.vectors) > 0:
-            if [0, 0] in self.vectors:
+            if [0, 0] in self.vectors and (round(self.world_pos[0]), round(self.world_pos[1])) in world.global_tiledict.keys():
                 if hypot(self.vel[0], self.vel[1]) > 5:
                     while [0, 0] in self.vectors:
                         self.world_pos[0] -= self.vel[0] * 0.01
@@ -370,7 +371,7 @@ class Enemy (PhysicsEntity):
         self.vel[1] += self.stats.grav * mult
         self.vector_recalc()
         if len(self.vectors) > 0:
-            if [0, 0] in self.vectors:
+            if [0, 0] in self.vectors and (round(self.world_pos[0]), round(self.world_pos[1])) in world.global_tiledict.keys():
                 if hypot(self.vel[0], self.vel[1]) > 5:
                     while [0, 0] in self.vectors:
                         self.world_pos[0] -= self.vel[0] * 0.01
@@ -571,7 +572,7 @@ if __name__ == '__main__':
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
 
     FPS = 60
-    CHUNKLOAD_RADIUS = 4
+    CHUNKLOAD_RADIUS = 1
     CHUNKSIZE = 64
     SCALING = 15
     PHYS_TIMESTEP = 4
@@ -598,21 +599,20 @@ if __name__ == '__main__':
     projectileGroup = pg.sprite.Group()
     enemyGroup = pg.sprite.Group()
 
-    normal_enemy = EnemyStats("N", 150, 2, 0, 100, 100, 30, 10, 2)
+    normal_enemy = EnemyStats("N", 150, 2, 0, 100, 100, 30, 10, .2)
     elite_enemy = EnemyStats("E", 1000, 10, 30, 30, 100, 20, 100, 1.5)
-    boss_enemy = EnemyStats("B", 10000, 50, 80, 30, 100, 10, 1000000, .3)
+    boss_enemy = EnemyStats("B", 10000, 50, 80, 30, 100, 10, 1000000, .5)
     enemy_projectile_normal = ProjStats("NP", 20, 5, 50, 60)
     enemy_projectile_strong = ProjStats("EP", 80, 20, 30, 40)
     player_projectile = ProjStats("PLR_P", 20, 0, 100, 60)
 
     N = Noise()
     world = World()
-    player = Player([0, 0], [0, 0], -1, sprites["player"], 0, 10000, EnemyStats("PLR", 100, 2, 20, 120, 100, 50, 20, 1))
+    player = Player([CHUNKSIZE / 2, CHUNKSIZE / 2], [0, 0], -1, sprites["player"], 0, 10000, EnemyStats("PLR", 100, 2, 20, 120, 100, 50, 20, 1))
     playerGroup.add(player)
     player_stats = PlayerStats()
     UI = UI()
-    thread = Thread(target=world.load_all)
-    thread.start()
+    world.load_all()
 
     def stat_up(params):
         if player_stats.points > 0:
@@ -676,9 +676,5 @@ if __name__ == '__main__':
 """
 TODO:
 -broken autostep
--da boss healthbar is rendered during physics calculation, which causes some funky issues
 -balancing
--the game sucks. boring to play. progression is bad.
--no graphics (will not fix)
--messy code (not an issue just yet)
 """
