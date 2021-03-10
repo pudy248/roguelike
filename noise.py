@@ -2,7 +2,7 @@ import math, random, numpy
 
 class Noise:
     def __init__(self):
-        self.SCALE = 12
+        self.SCALE = 11
         self.OCTAVES = 5
         self.PERSISTENCE = .4
         self.FRACTAL_RATIO = 1.6
