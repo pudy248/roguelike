@@ -77,12 +77,10 @@ class World:
             self.load_chunk(k)
 
     def load_chunk(self, coords):
-        print("load " + str(coords))
-        if coords not in self.threads.keys():
-            self.chunks.update({coords: Chunk(coords)})
-            self.threads.update({coords: self.pool.apply_async(self.chunks[coords].generate, (CHUNKSIZE, N))})
-            thr = Thread(target=self.post_chunk_load, args=(coords, ))
-            thr.start()
+        self.chunks.update({coords: Chunk(coords)})
+        self.threads.update({coords: self.pool.apply_async(self.chunks[coords].generate, (CHUNKSIZE, N))})
+        thr = Thread(target=self.post_chunk_load, args=(coords, ))
+        thr.start()
 
     def post_chunk_load(self, coords):
         r = self.threads[coords].get()
@@ -95,28 +93,25 @@ class World:
             enemyGroup.add(Enemy([(coords[0] + numpy.random.random()) * CHUNKSIZE,
                 (coords[1] + numpy.random.random()) * CHUNKSIZE], [0, 0], -1, sprites["tile_blue"], 1, 10000, enemy_choose(coords[1] * 2).__copy__()))
         self.loading_check()
-        print(str(int(self.percent_loaded * 100)) + " percent loaded")
 
     def unload_chunk(self, coords):
-        print("unload")
         if coords in self.chunks.keys() and self.chunks[coords].loaded:
             if coords in self.surfaces.keys():
                 self.surfaces.pop(coords)
             for k in self.chunks[coords].tiledict.keys():
                 self.global_tiledict.pop(self.chunks[coords].tiledict[k].pos)
             self.chunks.pop(coords)
-        print("unload done")
 
     def chunks_loadingupdate(self):
         center = (int(player.world_pos[0] / CHUNKSIZE), int(player.world_pos[1] / CHUNKSIZE))
-        for x in range(center[0] - CHUNKLOAD_RADIUS - 1, center[0] + CHUNKLOAD_RADIUS + 1):
-            for y in range(center[1] - CHUNKLOAD_RADIUS - 1, center[1] + CHUNKLOAD_RADIUS + 1):
-                if (x, y) not in self.chunks.keys():
+        for x in range(center[0] - CHUNKLOAD_RADIUS, center[0] + CHUNKLOAD_RADIUS):
+            for y in range(center[1] - CHUNKLOAD_RADIUS, center[1] + CHUNKLOAD_RADIUS):
+                if (x, y) not in self.chunks.keys() and (x, y) not in self.threads.keys():
                     self.load_chunk((x, y))
         keys = list(self.chunks.keys()).copy()
         for k in keys:
-            if k[0] not in range(center[0] - CHUNKLOAD_RADIUS - 3, center[0] + CHUNKLOAD_RADIUS + 3)\
-                    or k[1] not in range(center[1] - CHUNKLOAD_RADIUS - 3, center[1] + CHUNKLOAD_RADIUS + 3):
+            if k[0] not in range(center[0] - CHUNKLOAD_RADIUS - 2, center[0] + CHUNKLOAD_RADIUS + 2)\
+                    or k[1] not in range(center[1] - CHUNKLOAD_RADIUS - 2, center[1] + CHUNKLOAD_RADIUS + 2):
                 self.unload_chunk(k)
 
     def get_tile_id(self, x, y):
@@ -223,7 +218,7 @@ class PhysicsEntity(pg.sprite.Sprite):
         self.vector_recalc()
         if len(self.vectors) > 0:
             if [0, 0] in self.vectors and (round(self.world_pos[0]), round(self.world_pos[1])) in world.global_tiledict.keys():
-                if hypot(self.vel[0], self.vel[1]) > 5:
+                if hypot(self.vel[0], self.vel[1]) > 2:
                     while [0, 0] in self.vectors:
                         self.world_pos[0] -= self.vel[0] * 0.01
                         self.world_pos[1] -= self.vel[1] * 0.01
@@ -243,7 +238,7 @@ class PhysicsEntity(pg.sprite.Sprite):
         self.world_pos[1] += self.vel[1] * mult
 
     def vector_recalc(self):
-        tolerance = 0.01
+        tolerance = 0.05
         self.vectors = []
         xb = round(self.world_pos[0])
         yb = round(self.world_pos[1])
@@ -257,7 +252,7 @@ class PhysicsEntity(pg.sprite.Sprite):
                     continue
                 if yb - self.world_pos[1] > tolerance and y - yb == 1:
                     continue
-                if (x, y) not in world.global_tiledict.keys() or ((x, y) in world.global_tiledict.keys() and world.get_tile_id(x, y) == 0):
+                if ((x, y) not in world.global_tiledict.keys() and y < yb) or ((x, y) in world.global_tiledict.keys() and world.get_tile_id(x, y) == 0):
                     self.vectors.append([x - xb, y - yb])
 
     def collide(self, group: pg.sprite.Group):
@@ -338,11 +333,11 @@ class Player (PhysicsEntity):
                 self.world_pos[1] += 0.2
             if [1, 0] in self.vectors or [-1, 0] in self.vectors:
                 if [0, 1] in self.vectors:
-                    if self.vel[0] < 0 and world.get_tile_id(round(self.world_pos[0]) - 1, round(self.world_pos[1]) - 1) == 0:
+                    if self.vel[0] < 0 and world.get_tile_id(round(self.world_pos[0]) - 1, round(self.world_pos[1]) - 1) != 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= -0.2
-                    if self.vel[0] > 0 and world.get_tile_id(round(self.world_pos[0]) + 1, round(self.world_pos[1]) - 1) == 0:
+                    if self.vel[0] > 0 and world.get_tile_id(round(self.world_pos[0]) + 1, round(self.world_pos[1]) - 1) != 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= 0.2
@@ -398,19 +393,18 @@ class Enemy (PhysicsEntity):
             if [1, 0] in self.vectors or [-1, 0] in self.vectors:
                 if [0, 1] in self.vectors:
                     if self.vel[0] < 0 and world.get_tile_id(
-                            round(self.world_pos[0]) - 1, round(self.world_pos[1])) == 0:
+                            round(self.world_pos[0]) - 1, round(self.world_pos[1]) - 1) != 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= -0.2
                     if self.vel[0] > 0 and world.get_tile_id(
-                            round(self.world_pos[0]) + 1, round(self.world_pos[1])) == 0:
+                            round(self.world_pos[0]) + 1, round(self.world_pos[1]) - 1) != 0:
                         self.world_pos[1] -= 1
                     else:
                         self.world_pos[0] -= 0.2
                 else:
                     self.vel[0] /= -self.rebound
                     self.world_pos[0] -= 0.2 * (-1 if [-1, 0] in self.vectors else 1)
-
         else:
             self.vel[0] /= 1 + (.1 * mult)
         self.world_pos[0] += self.vel[0] * mult
@@ -448,7 +442,7 @@ class EnemyStats:
 
     def damage(self, stats):
         if stats.str in ["PLR_P", "EP", "NP"]:
-            self.hp -= stats.dmg * numpy.float_power(.95, self.armor - stats.pierce)
+            self.hp -= stats.dmg * numpy.float_power(.95, max(self.armor - stats.pierce, 0))
         else:
             if time.perf_counter() - self.contact_damage_cd > CONTACT_CD:
                 self.contact_damage_cd = time.perf_counter()
@@ -472,7 +466,7 @@ class PlayerStats:
         self.firepower = 0
         self.marksmanship = 0
         self.accuracy = 0
-        self.xp = 5000
+        self.xp = 0
         self.lvl = 0
         self.points = 0
 
@@ -530,6 +524,10 @@ class UI:
                     f = pg.font.SysFont("Arial", int(W * .013))
                     r = f.render("Press [TAB] for upgrades!", True, pg.Color("white"))
                     SURF.blit(r, (W * .987 - r.get_width(), W * .056))
+            if not game_running:
+                f = pg.font.SysFont("Arial", int(W * .2))
+                r = f.render("GAME OVER", True, pg.Color("red"))
+                SURF.blit(r, (W * .5 - r.get_width() / 2, H * .5 - r.get_height() / 2))
 
 
 class Bar:
@@ -572,10 +570,10 @@ if __name__ == '__main__':
     SURF = pg.display.set_mode((W, H), pg.NOFRAME)
 
     FPS = 60
-    CHUNKLOAD_RADIUS = 1
+    CHUNKLOAD_RADIUS = 3
     CHUNKSIZE = 64
-    SCALING = 15
-    PHYS_TIMESTEP = 4
+    SCALING = 16
+    PHYS_TIMESTEP = 3
     ENEMIES_PER_CHUNK = 2
     CONTACT_CD = 1
 
@@ -594,16 +592,18 @@ if __name__ == '__main__':
     projtimer = 0
     UI_bool = False
     buttons = []
+    game_running = True
+    tempbool = False
 
     playerGroup = pg.sprite.Group()
     projectileGroup = pg.sprite.Group()
     enemyGroup = pg.sprite.Group()
 
-    normal_enemy = EnemyStats("N", 150, 2, 0, 100, 100, 30, 10, .2)
-    elite_enemy = EnemyStats("E", 1000, 10, 30, 30, 100, 20, 100, 1.5)
-    boss_enemy = EnemyStats("B", 10000, 50, 80, 30, 100, 10, 1000000, .5)
-    enemy_projectile_normal = ProjStats("NP", 20, 5, 50, 60)
-    enemy_projectile_strong = ProjStats("EP", 80, 20, 30, 40)
+    normal_enemy = EnemyStats("N", 150, 2, 0, 100, 100, 30, 10, 1)
+    elite_enemy = EnemyStats("E", 1000, 10, 20, 30, 100, 20, 100, 1.5)
+    boss_enemy = EnemyStats("B", 10000, 50, 60, 30, 100, 10, 1000000, .4)
+    enemy_projectile_normal = ProjStats("NP", 10, 5, 50, 60)
+    enemy_projectile_strong = ProjStats("EP", 50, 20, 30, 40)
     player_projectile = ProjStats("PLR_P", 20, 0, 100, 60)
 
     N = Noise()
@@ -623,58 +623,57 @@ if __name__ == '__main__':
     buttons.append(Button(pg.Rect(W * .947, H - W * .157, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["agility"]))
     buttons.append(Button(pg.Rect(W * .947, H - W * .21, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["defense"]))
     while True:
-        timer = time.perf_counter()
-        for event in pg.event.get():
-            if event.type == pg.QUIT or event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                pg.quit()
-                sys.exit()
-            if event.type == pg.KEYDOWN:
-                k = event.key
-                if k == pg.K_TAB:
-                    UI_bool = not UI_bool
-            if event.type == pg.MOUSEBUTTONDOWN:
-                if pg.mouse.get_pressed(3)[2]:
-                    player.world_pos = [player.world_pos[0] + (pg.mouse.get_pos()[0] - (W / 2)) / SCALING,
-                        player.world_pos[1] + (pg.mouse.get_pos()[1] - (H / 2)) / SCALING]
-                elif pg.mouse.get_pressed(3)[0] and UI_bool:
-                    for b in buttons:
-                        if b.rect.left <= pg.mouse.get_pos()[0] <= b.rect.right and\
-                                b.rect.top <= pg.mouse.get_pos()[1] <= b.rect.bottom:
-                            b.func(b.params)
-        SURF.fill((0, 0, 0))
-        if not initial_load and world.loading_check():
-            initial_load = True
-            for e in enemyGroup:
-                e.time = time.perf_counter()
-        if initial_load:
-            world.chunks_loadingupdate()
-            for c in world.chunks.values():
-                c.draw()
-            if pg.mouse.get_pressed(3)[0]:
-                if timer - projtimer > 1 / player.stats.fire_rate and not UI_bool:
-                    direction = [(pg.mouse.get_pos()[0] - (W / 2)) / W, (pg.mouse.get_pos()[1] - (H / 2)) / H]
-                    direction[0] += (numpy.random.random() - .5) * player_stats.accuracy * hypot(direction[0], direction[1]) * 2
-                    direction[1] += (numpy.random.random() - .5) * player_stats.accuracy * hypot(direction[0], direction[1]) * 2
-                    projectileGroup.add(PhysicsEntity([player.world_pos[0] + (direction[0] / 50),
-                        player.world_pos[1] + (direction[1] / 50) - 0.7], direction, 5, sprites["tile_red"], 0, 1.3, player_projectile.__copy__()))
-                    projtimer = timer
-            projectileGroup.update()
-            projectileGroup.draw(SURF)
-            enemyGroup.update()
-            enemyGroup.draw(SURF)
-            playerGroup.update()
-            playerGroup.draw(SURF)
-            if player.stats.hp < 0:
-                player.stats.hp = 0
-            player_stats.stats_recalc()
+        if game_running:
+            timer = time.perf_counter()
+            for event in pg.event.get():
+                if event.type == pg.QUIT or event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                    pg.quit()
+                    sys.exit()
+                if event.type == pg.KEYDOWN:
+                    k = event.key
+                    if k == pg.K_TAB:
+                        UI_bool = not UI_bool
+                if event.type == pg.MOUSEBUTTONDOWN:
+                    if pg.mouse.get_pressed(3)[2]:
+                        player.world_pos = [player.world_pos[0] + (pg.mouse.get_pos()[0] - (W / 2)) / SCALING,
+                            player.world_pos[1] + (pg.mouse.get_pos()[1] - (H / 2)) / SCALING]
+                    elif pg.mouse.get_pressed(3)[0] and UI_bool:
+                        for b in buttons:
+                            if b.rect.left <= pg.mouse.get_pos()[0] <= b.rect.right and\
+                                    b.rect.top <= pg.mouse.get_pos()[1] <= b.rect.bottom:
+                                b.func(b.params)
+            SURF.fill((0, 0, 0))
+            if not initial_load and world.loading_check():
+                initial_load = True
+                tempbool = True
+                for e in enemyGroup:
+                    e.time = time.perf_counter()
+            if initial_load:
+                world.chunks_loadingupdate()
+                for c in world.chunks.values():
+                    c.draw()
+                if pg.mouse.get_pressed(3)[0]:
+                    if timer - projtimer > 1 / player.stats.fire_rate and not UI_bool:
+                        direction = [(pg.mouse.get_pos()[0] - (W / 2)) / W, (pg.mouse.get_pos()[1] - (H / 2)) / H]
+                        direction[0] += (numpy.random.random() - .5) * player_stats.accuracy * hypot(direction[0], direction[1]) * 2
+                        direction[1] += (numpy.random.random() - .5) * player_stats.accuracy * hypot(direction[0], direction[1]) * 2
+                        projectileGroup.add(PhysicsEntity([player.world_pos[0] + (direction[0] / 50),
+                            player.world_pos[1] + (direction[1] / 50) - 0.7], direction, 5, sprites["tile_red"], 0, 1.3, player_projectile.__copy__()))
+                        projtimer = timer
+                projectileGroup.update()
+                projectileGroup.draw(SURF)
+                enemyGroup.update()
+                enemyGroup.draw(SURF)
+                playerGroup.update()
+                playerGroup.draw(SURF)
+                player_stats.stats_recalc()
+                if tempbool:
+                    tempbool = False
+                    player.stats.hp = player.stats.max_hp
+        if player.stats.hp < 0:
+            game_running = False
         UI.render()
         pg.display.update()
         clock.tick(FPS)
         fpsArr.append(1 / (time.perf_counter() - timer))
         del fpsArr[0]
-
-"""
-TODO:
--broken autostep
--balancing
-"""
