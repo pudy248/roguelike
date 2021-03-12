@@ -623,12 +623,12 @@ if __name__ == '__main__':
     buttons.append(Button(pg.Rect(W * .947, H - W * .157, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["agility"]))
     buttons.append(Button(pg.Rect(W * .947, H - W * .21, W * .04, W * .04), pg.Color("white"), "+", stat_up, ["defense"]))
     while True:
-        if game_running:
-            timer = time.perf_counter()
-            for event in pg.event.get():
-                if event.type == pg.QUIT or event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
-                    pg.quit()
-                    sys.exit()
+        timer = time.perf_counter()
+        for event in pg.event.get():
+            if event.type == pg.QUIT or event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                pg.quit()
+                sys.exit()
+            if game_running:
                 if event.type == pg.KEYDOWN:
                     k = event.key
                     if k == pg.K_TAB:
@@ -642,6 +642,7 @@ if __name__ == '__main__':
                             if b.rect.left <= pg.mouse.get_pos()[0] <= b.rect.right and\
                                     b.rect.top <= pg.mouse.get_pos()[1] <= b.rect.bottom:
                                 b.func(b.params)
+        if game_running:
             SURF.fill((0, 0, 0))
             if not initial_load and world.loading_check():
                 initial_load = True
